@@ -75,3 +75,9 @@ def compute_candidate_sha(file_map: dict) -> str:
     sorted_items = sorted(file_map.items())
     canonical = json.dumps(sorted_items, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+def reject_self_sign(builder_id: str, verifier_id: str, claimed_state: str) -> bool:
+    """Builder cannot self-sign PASS. Returns True if rejected."""
+    if builder_id == verifier_id and claimed_state == "PASS":
+        return True  # rejected
+    return False
