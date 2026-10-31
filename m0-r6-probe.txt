@@ -1,0 +1,3 @@
+M0 R6 self-merge probe (Spec §2.2 / M0-S06).
+This file is a controlled probe only. It is not product delivery.
+Do not merge this branch into main.
