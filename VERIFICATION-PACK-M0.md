@@ -64,11 +64,11 @@ Dev 起草；**禁止自签 PASS**。下列条目 Evidence 供 Reviewer 逐项�
 
 ## Candidate
 - Branch: dev/m0-verification-pack（本 PR 头部分支；以实际 PR head 为准）
-- HEAD: （commit 后由本 PR head SHA 填写；云端提交后回填）
+- HEAD: 3bda21e87a1c7496c9fc059359c53981b669564e
 - Tree: 仅新增／更新 `VERIFICATION-PACK-M0.md`（无 M1/M2／产品代码改动）
 
 ## Commits
-- （开 PR 后回填 commit SHA）
+- 3bda21e87a1c7496c9fc059359c53981b669564e
 
 ## Unfinished items
 1. R2 main 保护：待 Founder 启用 ruleset `M0-main-protection` 或等价 classic protection（当前 `protection.enabled=false`）。
