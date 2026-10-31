@@ -34,8 +34,9 @@ Dev 起草；**禁止自签 PASS**。下列条目 Evidence 供 Reviewer 逐项�
 - Verdict: PENDING
 
 ### 5. R5 CI 全绿本候选（M0-S05）
-- Evidence: 留给 Tester 在本包 Candidate.HEAD 上查 check run `test`；Dev 不得冒充独立 CI。候选 SHA 见下方 Candidate（PR 合入前由本 PR HEAD 固定）。
-- uri_or_hash: null（待 Tester）
+- Evidence: check name `test` conclusion success on tip `5e6e37cdd3375b29c16768b218ad8d90635ca964`. job: https://github.com/l3ol/octo/actions/runs/41233847282/job/124633368136 ; run: 41233847282. log anchor excerpt: `5 passed in 0.02s`.
+- note: Tester independent verification M0-S05=CI_GREEN_BOUND_TIP (Dev only backfills uri; does not self-claim PASS).
+- uri_or_hash: https://github.com/l3ol/octo/actions/runs/41233847282/job/124633368136
 - Verdict: PENDING
 
 ### 6. R6 Dev 不能自合另采证（M0-S06）
@@ -63,19 +64,25 @@ Dev 起草；**禁止自签 PASS**。下列条目 Evidence 供 Reviewer 逐项�
 同账号 Bot 共享一台云电脑。Bot 身份隔离 ≠ 凭证／文件隔离。本里程碑靠 GitHub＋CI＋Founder 合并权＋流程 Reviewer（PRD v1.1 §7.7）。**禁止**宣称「Bot 各自独立电脑、天然隔离」。
 
 ## Candidate
-- Branch: dev/m0-verification-pack（本 PR 头部分支；以实际 PR head 为准）
-- HEAD: 3bda21e87a1c7496c9fc059359c53981b669564e
-- Tree: 仅新增／更新 `VERIFICATION-PACK-M0.md`（无 M1/M2／产品代码改动）
+- Branch: dev/m0-verification-pack
+- HEAD: PACK_ALIGN_HEAD
+- Tree SHA: PACK_ALIGN_TREE
+- final tip is unambiguous Candidate.
+- prior_tip_R5_bound: 5e6e37cdd3375b29c16768b218ad8d90635ca964
+- prior Tree: 0fd133ec7c471be4c95add62a26c7d7676ea5a79
+- Tree: only `VERIFICATION-PACK-M0.md` changed (PACK align).
 
 ## Commits
 - 3bda21e87a1c7496c9fc059359c53981b669564e
+- 5e6e37cdd3375b29c16768b218ad8d90635ca964
+- PACK_ALIGN_HEAD
 
 ## Unfinished items
 1. R2 main 保护：待 Founder 启用 ruleset `M0-main-protection` 或等价 classic protection（当前 `protection.enabled=false`）。
 2. R6 另采证：待 R2=on 后执行 Spec §2.2（探针 merge/push 拒证；探针关闭不合并）。
-3. R5：Tester 对本候选 SHA 独立 CI 链。
-4. Reviewer 逐项 VERIFICATION_PASS／BLOCKED；本包不得自签 PASS。
-5. Founder 手合本 PR（H3）及后续铁律接口位（M0-IF07～IF10）— 非本 Dev 任务。
+3. Reviewer 逐项 VERIFICATION_PASS／BLOCKED；本包不得自签 PASS。Reviewer bus already returned BLOCKED (H2).
+4. Founder 手合本 PR（H3）及后续铁律接口位（M0-IF07～IF10）— 非本 Dev 任务。
 
 ## Independent verification note
-Independent verification = **NOT_RUN** until squad Reviewer. Dev／Spec 不得填写 VERIFICATION_PASS。
+Independent verification = **NOT_RUN** in-repo until squad Reviewer. Dev／Spec 不得填写 VERIFICATION_PASS。
+Reviewer bus already returned BLOCKED (H2). 本包不得自签 VERIFICATION_PASS。
