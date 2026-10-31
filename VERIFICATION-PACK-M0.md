@@ -65,12 +65,11 @@ Dev 起草；**禁止自签 PASS**。下列条目 Evidence 供 Reviewer 逐项�
 
 ## Candidate
 - Branch: dev/m0-verification-pack
-- HEAD: 85d329e82290ab54a3ea8d9ac4a39a231a5d003a
-- Tree SHA: b62ed05fa6823c4bb74e44247170f771ffaac869
-- final tip is unambiguous Candidate.
-- prior_tip_R5_bound: 5e6e37cdd3375b29c16768b218ad8d90635ca964
-- prior Tree: 0fd133ec7c471be4c95add62a26c7d7676ea5a79
-- Tree: only `VERIFICATION-PACK-M0.md` changed (PACK align).
+- HEAD: 5e6e37cdd3375b29c16768b218ad8d90635ca964
+- Tree SHA: 0fd133ec7c471be4c95add62a26c7d7676ea5a79
+- 验包／合并候选 tip = Candidate.HEAD（上列 SHA）。
+- PR branch tip may be newer PACK-align commits that only edit this Markdown; those later tips are NOT a second Candidate.
+- R5 remains bound to Candidate.HEAD via job 124633368136 / `5 passed in 0.02s`.
 
 ## Commits
 - 3bda21e87a1c7496c9fc059359c53981b669564e
