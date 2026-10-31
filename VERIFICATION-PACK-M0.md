@@ -65,8 +65,8 @@ Dev 起草；**禁止自签 PASS**。下列条目 Evidence 供 Reviewer 逐项�
 
 ## Candidate
 - Branch: dev/m0-verification-pack
-- HEAD: fee96e2d068bb0ecde2bacf5e31eefe1faa0c743
-- Tree SHA: 5d8866063aebac807db83868493e1b3f43eace7c
+- HEAD: 85d329e82290ab54a3ea8d9ac4a39a231a5d003a
+- Tree SHA: b62ed05fa6823c4bb74e44247170f771ffaac869
 - final tip is unambiguous Candidate.
 - prior_tip_R5_bound: 5e6e37cdd3375b29c16768b218ad8d90635ca964
 - prior Tree: 0fd133ec7c471be4c95add62a26c7d7676ea5a79
@@ -77,6 +77,7 @@ Dev 起草；**禁止自签 PASS**。下列条目 Evidence 供 Reviewer 逐项�
 - 5e6e37cdd3375b29c16768b218ad8d90635ca964
 - cda505dac7c2732a4b6315bbf1ee9012054a3591
 - fee96e2d068bb0ecde2bacf5e31eefe1faa0c743
+- 85d329e82290ab54a3ea8d9ac4a39a231a5d003a
 
 ## Unfinished items
 1. R2 main 保护：待 Founder 启用 ruleset `M0-main-protection` 或等价 classic protection（当前 `protection.enabled=false`）。
