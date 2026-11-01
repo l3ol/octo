@@ -19,7 +19,7 @@ from octo.candidate import git_candidate_sha
 from octo.g3_review import product_scope_digest
 from octo.grant import safe_path, write_once
 from octo.nodes import emit_envelope
-from octo.objects import canonical, digest
+from octo.objects import canonical
 from octo.trusted_original import (
     TA_REVIEWER_ID,
     FIXTURE_DIGEST_ENV,
@@ -239,8 +239,64 @@ def run_n11(
     return emit_envelope(node_id="N11", at=at, inputs=dict(inputs), status=status, output=output)
 
 
-def _object_id(row: Mapping[str, Any]) -> str:
-    return str(row.get("id") or row.get("receipt_id") or row.get("decision_id") or row.get("evidence_id"))
+_AUTHORITY_FIELD = {"Receipt": "receipt_id", "Decision": "decision_id", "Evidence": "evidence_id"}
+_RECEIPT_REQUIRED = (
+    "receipt_id",
+    "grant_id",
+    "request_digest",
+    "candidate_sha",
+    "action",
+    "object_id",
+    "idempotency_key",
+    "started_at",
+    "finished_at",
+    "state",
+    "verifier",
+)
+_EVIDENCE_FIELDS = ("evidence_id", "decision_id", "type", "uri_or_hash", "collected_at")
+
+
+def _authority_id(kind: str, row: Mapping[str, Any]) -> str:
+    """PRD id for this kind. ``id`` is only an alias and cannot replace the authority field."""
+    field = _AUTHORITY_FIELD[kind]
+    if field not in row or row[field] is None or row[field] == "":
+        raise ValueError("OBJECT_ID_MISSING")
+    value = row[field]
+    if not isinstance(value, str):
+        raise ValueError("OBJECT_ID_TYPE_INVALID")
+    if "id" in row:
+        alias = row["id"]
+        if not isinstance(alias, str):
+            raise ValueError("OBJECT_ID_TYPE_INVALID")
+        if alias != value:
+            raise ValueError("CONTENT_CONFLICT")
+    return value
+
+
+def _prepare_row(kind: str, row: Mapping[str, Any]) -> dict:
+    data = dict(row)
+    if kind == "Evidence":
+        for key in _EVIDENCE_FIELDS:
+            if key not in data:
+                data[key] = None
+    if kind == "Receipt":
+        missing = [key for key in _RECEIPT_REQUIRED if key not in data]
+        if missing:
+            raise ValueError("RECEIPT_REQUIRED_FIELD_MISSING:" + ",".join(missing))
+    return data
+
+
+def _supersede_target(row: Mapping[str, Any]) -> Any:
+    """Read both PRD ``supersedes_id`` and the documented alias ``supersedes``."""
+    has_alias = "supersedes" in row
+    has_authority = "supersedes_id" in row
+    if has_alias and has_authority and row["supersedes"] != row["supersedes_id"]:
+        raise ValueError("CONTENT_CONFLICT")
+    if has_authority:
+        return row["supersedes_id"]
+    if has_alias:
+        return row["supersedes"]
+    return None
 
 
 def _relative(path: Path, store_root: Path) -> str:
@@ -254,10 +310,9 @@ def _existing_record(store: Path, object_id: str) -> Path | None:
     return sorted(matches)[0] if matches else None
 
 
-def _write_row(store: Path, store_root: Path, kind: str, row: Mapping[str, Any], written: list[dict]) -> None:
+def _write_row(store: Path, store_root: Path, kind: str, row: Mapping[str, Any], written: list[dict], object_id: str) -> None:
     if kind not in WRITTEN_OBJECTS:
         raise ValueError("WRITTEN_OBJECT_FORBIDDEN")
-    object_id = _object_id(row)
     path = safe_path(store / f"{kind}-{object_id}.json", store_root)
     payload = canonical(dict(row)) + b"\n"
     digest_hex = hashlib.sha256(payload).hexdigest()
@@ -275,15 +330,34 @@ def _write_row(store: Path, store_root: Path, kind: str, row: Mapping[str, Any],
     written.append({"object": kind, "path": relative, "sha256": actual})
 
 
-def run_n12(inputs: Mapping[str, Any], *, at: str, store_root: Path) -> dict:
-    """Capture decisions, evidence, and receipts. Failures are Receipt rows."""
+def _consume_evidence_refs(rows: list[tuple[str, dict]], required: list) -> None:
+    if not required:
+        return
+    for kind, row in rows:
+        if kind != "Receipt":
+            continue
+        got = row.get("evidence_refs")
+        if isinstance(got, list) and all(item in got for item in required):
+            return
+    raise ValueError("N10_EVIDENCE_REFS_UNCONSUMED")
+
+
+def run_n12(
+    inputs: Mapping[str, Any],
+    *,
+    at: str,
+    store_root: Path,
+    required_evidence_refs: list | None = None,
+) -> dict:
+    """Capture decisions, evidence, and receipts. Failures are Receipt rows.
+
+    ``id`` is a documented alias of the kind's authority id and must match it.
+    ``supersedes`` is a documented alias of PRD ``supersedes_id``; both are read.
+    """
     if set(inputs) != N12_KEYS:
         raise ValueError("N12_SHAPE_MISMATCH")
     store_root = Path(store_root)
-    store = store_root / "capture"
-    store.mkdir(parents=True, exist_ok=True)
-    written: list[dict] = []
-    superseded = []
+    prepared: list[tuple[str, dict, str, Any]] = []
     groups = (
         ("Receipt", list(inputs["receipts"])),
         ("Decision", list(inputs["decisions"])),
@@ -298,17 +372,31 @@ def run_n12(inputs: Mapping[str, Any], *, at: str, store_root: Path) -> dict:
                 raise ValueError("N12_SHAPE_MISMATCH")
             if row.get("kind") == "log":
                 raise ValueError("LOG_NOISE_WRITTEN")
-            _write_row(store, store_root, kind, row, written)
-            old_id = row.get("supersedes")
-            if old_id:
-                old_path = _existing_record(store, str(old_id))
-                if old_path is None:
-                    raise ValueError("SUPERSEDE_LINK_UNOPENABLE")
-                superseded.append({
-                    "old_id": old_id,
-                    "new_id": row.get("id") or row.get("receipt_id"),
-                    "link": _relative(old_path, store_root),
-                })
+            object_id = _authority_id(kind, row)
+            data = _prepare_row(kind, row)
+            target = _supersede_target(data)
+            if target is not None and not object_id:
+                raise ValueError("SUPERSEDE_NEW_ID_EMPTY")
+            prepared.append((kind, data, object_id, target))
+    _consume_evidence_refs([(kind, data) for kind, data, _oid, _target in prepared], list(required_evidence_refs or []))
+    store = store_root / "capture"
+    store.mkdir(parents=True, exist_ok=True)
+    written: list[dict] = []
+    superseded = []
+    for kind, data, object_id, target in prepared:
+        _write_row(store, store_root, kind, data, written, object_id)
+        if target is None:
+            continue
+        if target == "":
+            raise ValueError("SUPERSEDE_NEW_ID_EMPTY")
+        old_path = _existing_record(store, str(target))
+        if old_path is None:
+            raise ValueError("SUPERSEDE_LINK_UNOPENABLE")
+        superseded.append({
+            "old_id": target,
+            "new_id": object_id,
+            "link": _relative(old_path, store_root),
+        })
     if any(row["object"] not in WRITTEN_OBJECTS for row in written):
         raise ValueError("WRITTEN_OBJECT_FORBIDDEN")
     output = {"written": written, "superseded": superseded}
@@ -317,8 +405,48 @@ def run_n12(inputs: Mapping[str, Any], *, at: str, store_root: Path) -> dict:
     return emit_envelope(node_id="N12", at=at, inputs=dict(inputs), status="OK", output=output)
 
 
-def _pointer(field: str, value: Any) -> str:
-    return "sha256:" + digest({"field": field, "value": value})
+def _confine_store(store_root: Path, ref: str) -> Path:
+    if not isinstance(ref, str) or not ref or ref.startswith(("/", "\\")) or ".." in Path(ref).parts:
+        raise ValueError("PATH_ESCAPE")
+    current = store_root.resolve()
+    for part in Path(ref).parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("PATH_ESCAPE")
+    resolved = current.resolve()
+    root = store_root.resolve()
+    if resolved != root and root not in resolved.parents:
+        raise ValueError("PATH_ESCAPE")
+    return resolved
+
+
+def _file_with_sha(store_root: Path, hexdigest: str) -> bool:
+    for path in store_root.rglob("*"):
+        if not path.is_file() or path.is_symlink():
+            continue
+        if hashlib.sha256(path.read_bytes()).hexdigest() == hexdigest:
+            return True
+    return False
+
+
+def _resolve_evidence_link(ref: str, store_root: Path | None) -> str:
+    """Open a confined path or a content-addressed original. Label hashes do not resolve."""
+    if not isinstance(ref, str) or not ref:
+        raise ValueError("EVIDENCE_LINK_NOT_OPENABLE")
+    if ref.startswith(("outcome:", "verify_state:", "writeback_state:", "handoff_state:")):
+        raise ValueError("EVIDENCE_POINTER_UNRESOLVED")
+    if ref.startswith("sha256:"):
+        hexpart = ref.split(":", 1)[1]
+        if store_root is None or len(hexpart) != 64 or not _file_with_sha(store_root, hexpart):
+            raise ValueError("EVIDENCE_POINTER_UNRESOLVED")
+        return ref
+    if store_root is None:
+        raise ValueError("EVIDENCE_LINK_NOT_OPENABLE")
+    path = _confine_store(store_root, ref)
+    if not path.is_file():
+        raise ValueError("EVIDENCE_LINK_NOT_OPENABLE")
+    hashlib.sha256(path.read_bytes()).hexdigest()
+    return ref
 
 
 def _notification_path(store_root: Path) -> Path:
@@ -416,11 +544,8 @@ def run_n13(
             if persist_root is not None:
                 _save_notification_keys(persist_root, seen)
         notify_once = True
-    links = [ref for ref in evidence_refs if isinstance(ref, str) and ref]
-    for field in ("outcome", "verify_state", "writeback_state", "handoff_state"):
-        links.append(_pointer(field, inputs[field]))
-    if any(link.startswith(("outcome:", "verify_state:", "writeback_state:", "handoff_state:")) for link in links):
-        raise ValueError("EVIDENCE_LINK_NOT_OPENABLE")
+    links = [_resolve_evidence_link(ref, store_root) for ref in evidence_refs]
+    evidence_missing = not links
     output = {
         "state": state,
         "evidence_links": links,
@@ -430,7 +555,7 @@ def run_n13(
     }
     if set(output) != {"state", "evidence_links", "next_legal_action", "owner", "notify_once"}:
         raise ValueError("N13_SHAPE_MISMATCH")
-    status = "BLOCKED" if blocked else "OK"
+    status = "BLOCKED" if blocked or evidence_missing else "OK"
     return emit_envelope(node_id="N13", at=at, inputs=dict(inputs), status=status, output=output)
 
 

@@ -162,13 +162,35 @@ def test_n11_public_reviewer_id_file_is_not_an_issuance(tmp_path):
     assert envelope["output"]["verdict"] != "PASS"
 
 
+def _receipt(receipt_id: str, **extra) -> dict:
+    row = {
+        "receipt_id": receipt_id,
+        "grant_id": "g-1",
+        "request_digest": "ab" * 32,
+        "candidate_sha": "c" * 40,
+        "action": "internal_readonly",
+        "object_id": "read-" + "d" * 16,
+        "idempotency_key": "idem-" + receipt_id,
+        "started_at": AT,
+        "finished_at": AT,
+        "state": "SUCCEEDED",
+        "verifier": "NOT_RUN",
+        "evidence_refs": ["readable.txt", "read-" + "d" * 16],
+    }
+    row.update(extra)
+    return row
+
+
 def test_f_n12_receipt_is_first(tmp_path):
     envelope = run_n12(
         {
-            "decisions": [{"id": "d0", "content": "original"}, {"id": "d1", "content": "keep", "supersedes": "d0"}],
-            "evidence": [{"id": "e1", "uri_or_hash": "h"}],
-            "receipts": [{"receipt_id": "r1", "result": "SUCCEEDED"}],
-            "failures": [{"id": "f1", "reason": "disk write failed"}],
+            "decisions": [
+                {"decision_id": "d0", "content": "original"},
+                {"decision_id": "d1", "content": "keep", "supersedes": "d0"},
+            ],
+            "evidence": [{"evidence_id": "e1", "uri_or_hash": "h"}],
+            "receipts": [_receipt("r1")],
+            "failures": [_receipt("f1", state="FAILED")],
         },
         at=AT,
         store_root=tmp_path,
@@ -190,7 +212,7 @@ def test_f_n12_receipt_is_first(tmp_path):
         {
             "decisions": [],
             "evidence": [],
-            "receipts": [{"receipt_id": "r1", "result": "SUCCEEDED"}],
+            "receipts": [_receipt("r1")],
             "failures": [],
         },
         at=AT,
@@ -203,7 +225,7 @@ def test_f_n12_receipt_is_first(tmp_path):
             {
                 "decisions": [],
                 "evidence": [],
-                "receipts": [{"receipt_id": "r1", "result": "OTHER"}],
+                "receipts": [_receipt("r1", state="OTHER")],
                 "failures": [],
             },
             at=AT,
@@ -214,12 +236,55 @@ def test_f_n12_receipt_is_first(tmp_path):
     assert (tmp_path / conflict_path).read_bytes() == kept
 
 
-def test_f_n13_states_stay_separate_and_notify_once():
+def test_missing_authority_id_writes_no_file(tmp_path):
+    with pytest.raises(ValueError, match="OBJECT_ID_MISSING"):
+        run_n12(
+            {"decisions": [], "evidence": [], "receipts": [{"result": "OK"}], "failures": []},
+            at=AT,
+            store_root=tmp_path,
+        )
+    assert list(tmp_path.rglob("*-None.json")) == []
+    with pytest.raises(ValueError, match="OBJECT_ID_TYPE_INVALID"):
+        run_n12(
+            {"decisions": [], "evidence": [], "receipts": [_receipt("r-int") | {"receipt_id": 123}], "failures": []},
+            at=AT,
+            store_root=tmp_path,
+        )
+
+
+def test_supersede_new_id_is_the_authority_id(tmp_path):
+    run_n12(
+        {"decisions": [{"decision_id": "OLD-1", "v": 1}], "evidence": [], "receipts": [], "failures": []},
+        at=AT,
+        store_root=tmp_path,
+    )
+    old = tmp_path / "capture" / "Decision-OLD-1.json"
+    before = old.read_bytes()
+    envelope = run_n12(
+        {
+            "decisions": [{"decision_id": "NEW-1", "v": 2, "supersedes_id": "OLD-1"}],
+            "evidence": [],
+            "receipts": [],
+            "failures": [],
+        },
+        at=AT,
+        store_root=tmp_path,
+    )
+    assert envelope["output"]["superseded"][0]["new_id"] == "NEW-1"
+    assert old.read_bytes() == before
+
+
+def test_f_n13_states_stay_separate_and_notify_once(tmp_path):
+    evidence = tmp_path / "capture" / "note.txt"
+    evidence.parent.mkdir()
+    evidence.write_text("board", encoding="utf-8")
     seen: set[str] = set()
     first = run_n13(
         {"outcome": "SUCCEEDED", "verify_state": "BLOCKED", "writeback_state": "OK", "handoff_state": "NOT_READY"},
         at=AT,
         notified=seen,
+        evidence_refs=("capture/note.txt",),
+        store_root=tmp_path,
     )
     second = run_n13(
         {"outcome": "SUCCEEDED", "verify_state": "BLOCKED", "writeback_state": "OK", "handoff_state": "NOT_READY"},
@@ -232,17 +297,36 @@ def test_f_n13_states_stay_separate_and_notify_once():
     assert second["output"]["notify_once"] is False
     assert "path" not in first["output"]
     assert "sha256" not in first["output"]
-    assert first["output"]["evidence_links"][0] == "sha256:" + digest({"field": "outcome", "value": "SUCCEEDED"})
+    assert first["output"]["evidence_links"] == ["capture/note.txt"]
+    assert "sha256:" + digest({"field": "outcome", "value": "SUCCEEDED"}) not in first["output"]["evidence_links"]
     changed = run_n13(
         {"outcome": "FAILED", "verify_state": "BLOCKED", "writeback_state": "FAILED", "handoff_state": "NOT_READY"},
         at=AT,
         notified=seen,
+        evidence_refs=("capture/note.txt",),
+        store_root=tmp_path,
     )
     assert changed["output"]["notify_once"] is True
     failed_write = run_n13(
         {"outcome": "SUCCEEDED", "verify_state": "READY", "writeback_state": "FAILED", "handoff_state": "READY"},
         at=AT,
+        evidence_refs=("capture/note.txt",),
+        store_root=tmp_path,
     )
+    with pytest.raises(ValueError, match="EVIDENCE_POINTER_UNRESOLVED"):
+        run_n13(
+            {"outcome": "SUCCEEDED", "verify_state": "READY", "writeback_state": "OK", "handoff_state": "READY"},
+            at=AT,
+            evidence_refs=("sha256:" + digest({"field": "outcome", "value": "SUCCEEDED"}),),
+            store_root=tmp_path,
+        )
+    with pytest.raises(ValueError, match="EVIDENCE_LINK_NOT_OPENABLE"):
+        run_n13(
+            {"outcome": "SUCCEEDED", "verify_state": "READY", "writeback_state": "OK", "handoff_state": "READY"},
+            at=AT,
+            evidence_refs=("capture/Receipt-DOES-NOT-EXIST.json",),
+            store_root=tmp_path,
+        )
     assert failed_write["output"]["state"] != "SUCCEEDED"
     assert failed_write["status"] != "OK"
     assert failed_write["output"]["next_legal_action"] == "repair-writeback"

@@ -232,17 +232,41 @@ def registry_index_review(source: str) -> str | None:
     return None
 
 
-def ro_bind_assessment(proof: Mapping[str, Any] | None) -> str:
-    """chmod and ``os.access`` are not a read-only bind. GAP-04 stays open.
+_RO_BIND_METHODS = frozenset({"bwrap-ro-bind", "mount-ro", "ro-bind"})
+_RO_BIND_ERRNOS = frozenset({"EROFS", "EACCES", "EPERM"})
+_RO_BIND_OPS = frozenset({"open", "replace", "unlink", "rename"})
 
-    This does not grant trust and does not record an Ops proof.
+
+def ro_bind_assessment(proof: Mapping[str, Any] | None) -> str:
+    """Assess a read-only mount proof. This does not issue trust or PASS.
+
+    chmod and ``os.access`` stay ``RO_BIND_UNPROVEN``. A complete mount proof
+    is ``RO_BIND_PROVEN`` as an assessment only. GAP-04 stays open until Ops
+    records that proof on the real root. GAP-03 stays open: a proven mount
+    does not verify a reviewer original.
     """
     if not isinstance(proof, dict):
         return "RO_BIND_UNPROVEN"
     method = proof.get("method")
-    if method in {None, "chmod", "os.access"}:
+    if method in {None, "chmod", "os.access"} or method not in _RO_BIND_METHODS:
         return "RO_BIND_UNPROVEN"
-    return "RO_BIND_UNPROVEN"
+    operations = proof.get("operations")
+    if not isinstance(operations, list):
+        return "RO_BIND_UNPROVEN"
+    seen: set[str] = set()
+    for operation in operations:
+        if not isinstance(operation, dict) or operation.get("exception") != "OSError":
+            return "RO_BIND_UNPROVEN"
+        errno_name = operation.get("errno") or operation.get("errno_name")
+        if errno_name not in _RO_BIND_ERRNOS:
+            return "RO_BIND_UNPROVEN"
+        name = operation.get("op")
+        if name not in _RO_BIND_OPS:
+            return "RO_BIND_UNPROVEN"
+        seen.add(name)
+    if seen != _RO_BIND_OPS:
+        return "RO_BIND_UNPROVEN"
+    return "RO_BIND_PROVEN"
 
 
 def _evidence_ok(record: Mapping[str, Any]) -> str | None:

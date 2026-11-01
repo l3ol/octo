@@ -8,6 +8,8 @@ Builder selftest support only.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Mapping
 
 from octo.closing import handoff_state_from_n11, run_n11, run_n12, run_n13, writeback_state_from_n12
@@ -166,6 +168,31 @@ def _n10_inputs(request, context_pack: dict) -> dict:
     }
 
 
+def _n12_receipt_from_n10(n10_env: dict, request, store_root: Path, evidence_refs: list) -> dict:
+    """Copy fields the run already has. Missing §5 keys are not invented."""
+    receipt_id = (n10_env.get("output") or {}).get("receipt_id")
+    journal = {}
+    if isinstance(receipt_id, str) and receipt_id:
+        path = Path(store_root) / "journal" / f"{receipt_id}.json"
+        if path.is_file():
+            journal = json.loads(path.read_text(encoding="utf-8"))
+    object_id = next((item for item in evidence_refs if isinstance(item, str) and item.startswith("read-")), None)
+    row = {
+        "receipt_id": receipt_id,
+        "grant_id": journal.get("grant_id", getattr(request, "grant_id", None)),
+        "request_digest": journal.get("request_digest", getattr(request, "digest", None)),
+        "candidate_sha": journal.get("candidate_sha") or journal.get("git_candidate_sha") or getattr(request, "git_candidate_sha", None),
+        "action": journal.get("action", getattr(request, "action", None)),
+        "object_id": object_id,
+        "idempotency_key": journal.get("idempotency_key", getattr(request, "idempotency_key", None)),
+        "evidence_refs": list(evidence_refs),
+    }
+    for key in ("started_at", "finished_at", "state", "verifier"):
+        if key in journal:
+            row[key] = journal[key]
+    return row
+
+
 def _n2_pack(envelopes: list[dict]) -> dict:
     n2 = next(item for item in envelopes if item["node_id"] == "N2")
     pack = n2["output"]
@@ -216,17 +243,22 @@ def run_standard(route_request, pack, *, at: str, request, store, now=None) -> d
         store_root=store.root,
     )
     envelopes.append(n11_env)
+    evidence_refs = list((n10_env.get("output") or {}).get("evidence_refs") or [])
     n12_inputs = {
         "decisions": [],
         "evidence": [],
-        "receipts": [{
-            "receipt_id": n10_env["output"]["receipt_id"],
-            "result": n10_env["output"]["result"],
-        }],
+        "receipts": [_n12_receipt_from_n10(n10_env, request, store.root, evidence_refs)],
         "failures": [],
     }
     try:
-        n12_env = run_n12(n12_inputs, at=at, store_root=store.root)
+        if not evidence_refs:
+            raise ValueError("N10_EVIDENCE_REFS_UNCONSUMED")
+        n12_env = run_n12(
+            n12_inputs,
+            at=at,
+            store_root=store.root,
+            required_evidence_refs=evidence_refs,
+        )
     except (OSError, ValueError):
         n12_env = emit_envelope(
             node_id="N12",

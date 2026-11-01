@@ -394,6 +394,16 @@ def test_registry_index_is_confined_and_chmod_is_not_a_bind():
     assert registry_index_review("document = index.read_text(encoding='utf-8')") == "REGISTRY_INDEX_UNCONFINED"
     assert ro_bind_assessment({"method": "chmod"}) == "RO_BIND_UNPROVEN"
     assert ro_bind_assessment({"method": "os.access"}) == "RO_BIND_UNPROVEN"
+    proven = ro_bind_assessment({
+        "method": "bwrap-ro-bind",
+        "operations": [
+            {"op": "open", "exception": "OSError", "errno": "EROFS"},
+            {"op": "replace", "exception": "OSError", "errno": "EROFS"},
+            {"op": "unlink", "exception": "OSError", "errno": "EPERM"},
+            {"op": "rename", "exception": "OSError", "errno": "EACCES"},
+        ],
+    })
+    assert proven == "RO_BIND_PROVEN"
     root = Path("/tmp")
     assert _read_confined(root, "/etc/passwd") == "PATH_ESCAPE"
     assert _read_confined(root, "../outside") == "PATH_ESCAPE"
