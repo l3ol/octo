@@ -3,6 +3,7 @@ name: CI
 # pull_request starts this workflow only for PRs into main.
 # A PR into dev/product-s1-standard-loop does not start it.
 # workflow_dispatch can be started manually on a chosen ref; it is not a merge.
+# pytest runs on the candidate tip. pull_request does not test the synthetic merge commit.
 on:
   workflow_dispatch:
   push:
@@ -14,7 +15,50 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout candidate commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require HEAD to be the triggering candidate
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          TRIGGER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          head_sha="$(git rev-parse HEAD)"
+          tree_sha="$(git rev-parse 'HEAD^{tree}')"
+          echo "HEAD=${head_sha}"
+          echo "TREE=${tree_sha}"
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            echo "github.event.pull_request.head.sha=${PR_HEAD_SHA}"
+            echo "github.event.pull_request.base.sha=${PR_BASE_SHA}"
+            if [ -z "${PR_HEAD_SHA}" ] || [ "${head_sha}" != "${PR_HEAD_SHA}" ]; then
+              echo "MISMATCH: HEAD ${head_sha} != pull_request.head.sha ${PR_HEAD_SHA}" >&2
+              exit 1
+            fi
+            if git cat-file -t "${TRIGGER_SHA}" >/dev/null 2>&1; then
+              echo "merge_commit=${TRIGGER_SHA}"
+            else
+              echo "merge_commit_not_checked_out=${TRIGGER_SHA}"
+            fi
+            if [ "${head_sha}" = "${TRIGGER_SHA}" ]; then
+              echo "MISMATCH: HEAD is the pull_request merge commit, not the candidate tip" >&2
+              exit 1
+            fi
+          else
+            echo "github.sha=${TRIGGER_SHA}"
+            if [ -z "${TRIGGER_SHA}" ] || [ "${head_sha}" != "${TRIGGER_SHA}" ]; then
+              echo "MISMATCH: HEAD ${head_sha} != github.sha ${TRIGGER_SHA}" >&2
+              exit 1
+            fi
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

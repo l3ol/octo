@@ -13,7 +13,8 @@ import hashlib
 from pathlib import Path
 from typing import Any, Mapping
 
-from octo.candidate import git_candidate_sha, tree_sha
+from octo.candidate import tree_sha
+from octo.g3_review import require_candidate_sha
 from octo.grant import safe_path, write_once
 from octo.models import reject_self_sign
 from octo.nodes import emit_envelope
@@ -34,7 +35,7 @@ N13_KEYS = {"name", "record"}
 def run_n11(inputs: Mapping[str, Any], *, at: str) -> dict:
     if set(inputs) != N11_KEYS:
         raise ValueError("N11 inputs do not match the closing receipt shape")
-    git_candidate_sha(inputs["git_candidate_sha"])
+    require_candidate_sha(inputs["git_candidate_sha"])
     tree_sha(inputs["tree_sha"])
     sha256(inputs["request_digest"])
     if inputs["state"] == "PASS":

@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""Print a G3 review receipt for one quadruple. Does not issue PASS.
+
+Usage: PYTHONPATH=. scripts/g3_review_entry payload.json
+   or: PYTHONPATH=. scripts/g3_review_entry < payload.json
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+from octo.g3_review import review_entry
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) > 2:
+        print("usage: g3_review_entry [payload.json]", file=sys.stderr)
+        return 2
+    if len(argv) == 2:
+        payload = json.loads(Path(argv[1]).read_text(encoding="utf-8"))
+    else:
+        payload = json.load(sys.stdin)
+    try:
+        receipt = review_entry(payload)
+    except (PermissionError, ValueError, TypeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    json.dump(receipt, sys.stdout, ensure_ascii=False, sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))
