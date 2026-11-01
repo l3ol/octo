@@ -42,7 +42,12 @@ ORIGINAL_AGENT_ID = TA_REVIEWER_ID
 ORIGINAL_REVIEWER_SESSION_ID = "6ae6216e-bbec-83e8-87dc-c3edd9027bcc"
 ORIGINAL_SESSION_ID = ORIGINAL_REVIEWER_SESSION_ID
 REGISTRY_ENV = "OCTO_TRUSTED_ORIGINAL_ROOT"
+ALLOWLIST_ENV = "OCTO_TRUST_ALLOWLIST"
 FIXTURE_DIGEST_ENV = "OCTO_FIXTURE_DIGEST"
+# Expected config value for the external issuer allowlist. Not an acceptance fallback.
+DEFAULT_EXPECTED_ISSUER = "TA-CHAT-REVIEWER-OCTO-20261101-01"
+ALLOWLIST_RUN_LOG: list[dict[str, str]] = []
+_CONSUMED_RECEIPTS: dict[str, set[str]] = {}
 CANDIDATE_ROOT = Path(__file__).resolve().parents[1]
 _HEX = frozenset("0123456789abcdef")
 
@@ -69,6 +74,7 @@ class BindingTuple:
 class Found:
     record: dict[str, Any]
     test_only: bool
+    mechanism_accept: bool = False
 
 
 @dataclass(frozen=True)
@@ -79,6 +85,7 @@ class Empty:
 @dataclass(frozen=True)
 class Rejected:
     reason_code: str
+    detail: str = ""
 
 
 ConsumeResult = Found | Empty | Rejected
@@ -89,6 +96,7 @@ class ReadOnlyRegistry:
     root: Path
     records: dict[str, dict[str, Any]]
     duplicate_ids: bool = False
+    production: bool = True
 
 
 def fixture_set_digest(fixture_hashes: set[str] | frozenset[str]) -> str:
@@ -222,7 +230,13 @@ def open_registry(root: Path | None, *, store_root: Path | None = None) -> ReadO
         if registration_id in records:
             duplicate = True
         records[registration_id] = row
-    return ReadOnlyRegistry(root=root.resolve(), records=records, duplicate_ids=duplicate)
+    production = document.get("registry_class") != "TEST_FIXTURE"
+    return ReadOnlyRegistry(
+        root=root.resolve(),
+        records=records,
+        duplicate_ids=duplicate,
+        production=production,
+    )
 
 
 def registry_index_review(source: str) -> str | None:
@@ -269,6 +283,103 @@ def ro_bind_assessment(proof: Mapping[str, Any] | None) -> str:
     return "RO_BIND_PROVEN"
 
 
+def _read_external_bytes(path: Path) -> bytes | None:
+    if path.is_symlink() or not path.is_file():
+        return None
+    if _inside(path.resolve(), CANDIDATE_ROOT.resolve()):
+        return None
+    flags = os.O_RDONLY | os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(path, flags)
+    except OSError:
+        return None
+    try:
+        chunks = []
+        while True:
+            block = os.read(fd, 1 << 20)
+            if not block:
+                break
+            chunks.append(block)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+def load_allowlists(path: Path | None = None) -> tuple[dict[str, list[str]], str] | None:
+    """Load the external issuer and source lists. Missing config does not fall back."""
+    if path is None:
+        env = os.environ.get(ALLOWLIST_ENV)
+        path = Path(env) if env else None
+    if path is None:
+        return None
+    raw = _read_external_bytes(path)
+    if raw is None:
+        return None
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return None
+    issuers = document.get("issuer_allowlist") if isinstance(document, dict) else None
+    sources = document.get("source_allowlist") if isinstance(document, dict) else None
+    if not isinstance(issuers, list) or not isinstance(sources, list):
+        return None
+    if not all(isinstance(item, str) and item for item in issuers + sources):
+        return None
+    sha = hashlib.sha256(raw).hexdigest()
+    ALLOWLIST_RUN_LOG.append({"path": str(path), "sha256": sha})
+    return {"issuer_allowlist": issuers, "source_allowlist": sources}, sha
+
+
+def _review_allowlist(record: Mapping[str, Any], allowlists: Mapping[str, list[str]]) -> str | None:
+    """Issuer and source are different lists. An agent id in the session field collides."""
+    evidence = record.get("source_evidence")
+    issuer = record.get("issuer_id")
+    if not isinstance(evidence, dict) or not isinstance(issuer, str):
+        return "EVIDENCE_UNVERIFIED"
+    session = evidence.get("issuer_session_id")
+    agent = evidence.get("issuer_agent_id")
+    if not isinstance(session, str):
+        return "EVIDENCE_UNVERIFIED"
+    if session == issuer or session.startswith("agt_"):
+        return "ISSUER_SESSION_COLLISION"
+    issuers = set(allowlists.get("issuer_allowlist") or [])
+    sources = set(allowlists.get("source_allowlist") or [])
+    if issuer not in issuers:
+        return "ISSUER_MISMATCH"
+    if isinstance(agent, str) and agent not in issuers:
+        return "ISSUER_MISMATCH"
+    if session not in sources:
+        return "ISSUER_MISMATCH"
+    if issuer in {"TB", "BUILDER", "DEVSPACE_VERIFIER"}:
+        return "ISSUER_MISMATCH"
+    return None
+
+
+def _gap03_readonly(root: Path, record: Mapping[str, Any], actual_sha: str) -> bool | None:
+    """Read-only check of an existing one-shot custody artifact.
+
+    None means the channel is not connected. A custody file is not an issuer
+    and cannot carry a verdict. GAP-03 stays open when this returns None.
+    """
+    ref = record.get("custody_ref")
+    if not isinstance(ref, str) or not ref:
+        return None
+    payload = _read_confined(root, ref)
+    if isinstance(payload, str):
+        return False
+    try:
+        document = json.loads(payload.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(document, dict):
+        return False
+    if document.get("issuer") or document.get("verdict") or document.get("signed_by"):
+        return False
+    return document.get("raw_sha256") == actual_sha and document.get("not_issuer") is True
+
+
 def _evidence_ok(record: Mapping[str, Any]) -> str | None:
     """Check the agent and the session against two different constants.
 
@@ -310,6 +421,8 @@ def consume_trusted_original(
     binding_tuple: BindingTuple | Mapping[str, Any] | None,
     registry_view: ReadOnlyRegistry | None,
     fixture_hashes: set[str] | frozenset[str] | None = None,
+    *,
+    allowlist_path: Path | None = None,
 ) -> ConsumeResult:
     """Look up one original by the runner tuple. Candidate keys are not consulted."""
     if not isinstance(registry_view, ReadOnlyRegistry):
@@ -317,7 +430,7 @@ def consume_trusted_original(
     if registry_view.duplicate_ids:
         return Rejected("AMBIGUOUS")
     if not registry_view.records:
-        return Empty("EMPTY_REGISTRY")
+        return Empty("BLOCKED_WAITING_REAL_DATA")
     query = normalize_binding(binding_tuple)
     if query is None or query.scope_digest != product_scope_digest():
         return Rejected("TUPLE_MISMATCH")
@@ -331,13 +444,14 @@ def consume_trusted_original(
     if len(matches) > 1:
         return Rejected("AMBIGUOUS")
     record = matches[0]
+    if registry_view.production and record.get("content_kind") == "TEST_FIXTURE":
+        return Rejected("EVIDENCE_UNVERIFIED")
     if not _kind_ok(record):
         return Rejected("EVIDENCE_UNVERIFIED")
-    evidence_gap = _evidence_ok(record)
-    if evidence_gap:
-        return Rejected(evidence_gap)
-    if record.get("content_kind") == "REVIEW_RECEIPT":
-        return Rejected("EVIDENCE_UNVERIFIED")
+    if record.get("content_kind") != "REVIEW_RECEIPT":
+        evidence_gap = _evidence_ok(record)
+        if evidence_gap:
+            return Rejected(evidence_gap)
     payload = _read_confined(registry_view.root, record.get("raw_bytes_ref"))
     if isinstance(payload, str):
         return Rejected(payload)
@@ -353,4 +467,40 @@ def consume_trusted_original(
         return Rejected("EVIDENCE_UNVERIFIED")
     if actual in hashes or actual == query.fixture_digest:
         return Rejected("FIXTURE_LOOP")
-    return Found(record=dict(record), test_only=record.get("test_only") is True)
+    if record.get("content_kind") != "REVIEW_RECEIPT":
+        return Found(record=dict(record), test_only=True)
+    return _review_decision(registry_view, record, query, actual, binding_tuple, allowlist_path)
+
+
+def _review_decision(
+    registry_view: ReadOnlyRegistry,
+    record: Mapping[str, Any],
+    query: BindingTuple,
+    actual: str,
+    binding_tuple: BindingTuple | Mapping[str, Any] | None,
+    allowlist_path: Path | None,
+) -> ConsumeResult:
+    """Allowlisted review receipt. Unconnected GAP-03 stays unverified. Not PASS."""
+    loaded = load_allowlists(allowlist_path)
+    if loaded is None:
+        return Rejected("SOURCE_UNAVAILABLE")
+    allowlists, _sha = loaded
+    gap = _review_allowlist(record, allowlists)
+    if gap:
+        return Rejected(gap)
+    raw_binding = binding_tuple if isinstance(binding_tuple, Mapping) and not isinstance(binding_tuple, BindingTuple) else {}
+    recorded = record.get("binding_tuple") if isinstance(record.get("binding_tuple"), Mapping) else {}
+    for key in ("task", "rule_version"):
+        if recorded.get(key) != raw_binding.get(key) or not recorded.get(key):
+            return Rejected("TUPLE_MISMATCH")
+    receipt_id = record.get("receipt_id")
+    if not isinstance(receipt_id, str) or not receipt_id:
+        return Rejected("EVIDENCE_UNVERIFIED")
+    seen = _CONSUMED_RECEIPTS.setdefault(str(registry_view.root), set())
+    if receipt_id in seen:
+        return Rejected("EVIDENCE_UNVERIFIED")
+    seen.add(receipt_id)
+    verified = _gap03_readonly(registry_view.root, record, actual)
+    if verified is not True:
+        return Rejected("EVIDENCE_UNVERIFIED", "GAP-03")
+    return Found(record=dict(record), test_only=False, mechanism_accept=True)

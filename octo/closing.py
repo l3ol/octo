@@ -113,6 +113,8 @@ def _verified_original(
 
 
 def _empty_note(result: Empty) -> str:
+    if result.reason == "BLOCKED_WAITING_REAL_DATA":
+        return "BLOCKED_WAITING_REAL_DATA EMPTY_REGISTRY no trusted reviewer registration"
     if result.reason == "EMPTY_REGISTRY":
         return "EMPTY_REGISTRY no trusted reviewer registration"
     return result.reason
@@ -122,20 +124,18 @@ def _from_consume(result: ConsumeResult, scope: Any) -> tuple[dict, str]:
     if isinstance(result, Empty):
         return _blocked(scope, _empty_note(result))
     if isinstance(result, Rejected):
-        return _blocked(scope, result.reason_code)
+        note = result.reason_code if not result.detail else f"{result.reason_code} {result.detail}"
+        status = "SOURCE_UNAVAILABLE" if result.reason_code == "SOURCE_UNAVAILABLE" else "BLOCKED"
+        output = {
+            "verdict": "BLOCKED",
+            "evidence": [{"note": note, "test_only": True, "runtime_pass": False}],
+            "scope": scope,
+        }
+        return output, status
     if result.test_only:
         return _blocked(scope, "TEST_FIXTURE_ONLY")
-    verdict = result.record.get("verdict")
-    if verdict == "PASS":
-        return {
-            "verdict": "PASS",
-            "evidence": [{
-                "note": "trusted original",
-                "test_only": False,
-                "runtime_pass": False,
-            }],
-            "scope": scope,
-        }, "OK"
+    if result.mechanism_accept:
+        return _blocked(scope, "MECHANISM_ACCEPT")
     return _blocked(scope, "verdict not PASS")
 
 

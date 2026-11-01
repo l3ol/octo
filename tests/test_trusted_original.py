@@ -74,7 +74,10 @@ def _record(root: Path, *, registration_id: str = "reg-1", raw: bytes = b"fixtur
 
 def _seal(root: Path, records: list[dict]) -> None:
     root.mkdir(parents=True, exist_ok=True)
-    (root / "registry.json").write_text(json.dumps({"records": records}), encoding="utf-8")
+    (root / "registry.json").write_text(
+        json.dumps({"registry_class": "TEST_FIXTURE", "records": records}),
+        encoding="utf-8",
+    )
     for path in root.rglob("*"):
         if path.is_symlink() or path.is_dir():
             continue
@@ -449,7 +452,7 @@ def test_non_pass_review_receipt_stays_blocked_and_pass_is_only_ok_when_not_a_fi
         )
     finally:
         _unseal(failed)
-    assert envelope["status"] == "BLOCKED"
+    assert envelope["status"] != "OK"
     assert envelope["output"]["verdict"] != "PASS"
 
     forged = tmp_path / "forged-review"
@@ -471,9 +474,144 @@ def test_non_pass_review_receipt_stays_blocked_and_pass_is_only_ok_when_not_a_fi
         )
     finally:
         _unseal(forged)
-    assert hit["status"] == "BLOCKED"
+    assert hit["status"] == "SOURCE_UNAVAILABLE"
     assert hit["output"]["verdict"] != "PASS"
-    assert "EVIDENCE_UNVERIFIED" in hit["output"]["evidence"][0]["note"]
+    assert hit["output"]["evidence"][0]["note"] == "SOURCE_UNAVAILABLE"
     assert hit["output"]["evidence"][0]["runtime_pass"] is False
     assert runner_base_sha() == BASE
     assert isinstance(binding, BindingTuple)
+
+
+def _allowlist(path: Path, issuers: list[str], sources: list[str]) -> Path:
+    path.write_text(json.dumps({
+        "issuer_allowlist": issuers,
+        "source_allowlist": sources,
+    }), encoding="utf-8")
+    return path
+
+
+def _production(root: Path, records: list[dict]) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "registry.json").write_text(json.dumps({"records": records}), encoding="utf-8")
+    for path in root.rglob("*"):
+        if path.is_symlink() or path.is_dir():
+            continue
+        path.chmod(0o444)
+    root.chmod(0o555)
+
+
+def _review_binding() -> dict:
+    raw = _tuple()
+    raw["task"] = "g2-s1"
+    raw["rule_version"] = "t255"
+    return raw
+
+
+def test_allowlisted_review_stops_at_gap03_until_custody_matches(tmp_path):
+    from octo.trusted_original import ALLOWLIST_RUN_LOG, DEFAULT_EXPECTED_ISSUER, load_allowlists
+    binding = _review_binding()
+    root = tmp_path / "review"
+    raw = b"ta-chat-bytes"
+    row = _record(
+        root,
+        raw=raw,
+        binding_tuple=binding,
+        content_kind="REVIEW_RECEIPT",
+        test_only=False,
+        verdict="PASS",
+        issuer_id=DEFAULT_EXPECTED_ISSUER,
+        receipt_id="rcpt-1",
+    )
+    row["source_evidence"]["issuer_agent_id"] = DEFAULT_EXPECTED_ISSUER
+    row["source_evidence"]["issuer_session_id"] = ORIGINAL_REVIEWER_SESSION_ID
+    allow = _allowlist(
+        tmp_path / "allow.json",
+        [DEFAULT_EXPECTED_ISSUER],
+        [ORIGINAL_REVIEWER_SESSION_ID],
+    )
+    _production(root, [row])
+    try:
+        view = _view(root)
+        waiting = consume_trusted_original(binding, view, set(), allowlist_path=allow)
+        assert waiting.reason_code == "EVIDENCE_UNVERIFIED"
+        assert waiting.detail == "GAP-03"
+        assert "ISSUER_" not in waiting.reason_code
+        _unseal(root)
+        (root / "custody.json").write_text(json.dumps({
+            "raw_sha256": hashlib.sha256(raw).hexdigest(),
+            "not_issuer": True,
+        }), encoding="utf-8")
+        row["custody_ref"] = "custody.json"
+        (root / "registry.json").write_text(json.dumps({"records": [row]}), encoding="utf-8")
+        _production(root, [row])
+        _CONSUMED = __import__("octo.trusted_original", fromlist=["_CONSUMED_RECEIPTS"])._CONSUMED_RECEIPTS
+        _CONSUMED.pop(str(root.resolve()), None)
+        accepted = consume_trusted_original(binding, _view(root), set(), allowlist_path=allow)
+        assert isinstance(accepted, Found)
+        assert accepted.mechanism_accept is True
+        assert accepted.test_only is False
+        again = consume_trusted_original(binding, _view(root), set(), allowlist_path=allow)
+        assert again.reason_code == "EVIDENCE_UNVERIFIED"
+    finally:
+        _unseal(root)
+    logged = load_allowlists(allow)
+    assert logged is not None
+    assert logged[1] in {item["sha256"] for item in ALLOWLIST_RUN_LOG}
+
+
+def test_allowlist_miss_public_id_and_tb_custody_are_not_issuers(tmp_path):
+    from octo.trusted_original import DEFAULT_EXPECTED_ISSUER
+    binding = _review_binding()
+    root = tmp_path / "miss"
+    row = _record(
+        root,
+        binding_tuple=binding,
+        content_kind="REVIEW_RECEIPT",
+        test_only=False,
+        issuer_id=DEFAULT_EXPECTED_ISSUER,
+        receipt_id="rcpt-miss",
+    )
+    row["source_evidence"]["issuer_agent_id"] = DEFAULT_EXPECTED_ISSUER
+    row["source_evidence"]["issuer_session_id"] = ORIGINAL_REVIEWER_SESSION_ID
+    allow = _allowlist(tmp_path / "old-only.json", [TA_REVIEWER_ID], [ORIGINAL_REVIEWER_SESSION_ID])
+    _production(root, [row])
+    try:
+        view = _view(root)
+        missed = consume_trusted_original(binding, view, set(), allowlist_path=allow)
+        assert missed.reason_code == "ISSUER_MISMATCH"
+        absent = consume_trusted_original(binding, view, set(), allowlist_path=tmp_path / "missing-allow.json")
+        assert absent.reason_code == "SOURCE_UNAVAILABLE"
+    finally:
+        _unseal(root)
+    stuffed = tmp_path / "stuff"
+    bad = _record(
+        stuffed,
+        binding_tuple=binding,
+        content_kind="REVIEW_RECEIPT",
+        test_only=False,
+        issuer_id=DEFAULT_EXPECTED_ISSUER,
+        receipt_id="rcpt-tb",
+    )
+    bad["source_evidence"]["issuer_agent_id"] = DEFAULT_EXPECTED_ISSUER
+    bad["source_evidence"]["issuer_session_id"] = ORIGINAL_REVIEWER_SESSION_ID
+    bad["issuer_id"] = "TB"
+    bad["source_evidence"]["issuer_agent_id"] = "TB"
+    _production(stuffed, [bad])
+    both = _allowlist(tmp_path / "both.json", [DEFAULT_EXPECTED_ISSUER, "TB"], [ORIGINAL_REVIEWER_SESSION_ID])
+    try:
+        tb = consume_trusted_original(binding, _view(stuffed), set(), allowlist_path=both)
+        assert tb.reason_code == "ISSUER_MISMATCH"
+    finally:
+        _unseal(stuffed)
+
+
+def test_production_fixture_is_not_a_real_receipt(tmp_path):
+    binding = normalize_binding(_tuple())
+    root = tmp_path / "prod-fixture"
+    row = _record(root, binding_tuple=binding.as_dict())
+    _production(root, [row])
+    try:
+        result = consume_trusted_original(binding, _view(root), set())
+        assert result.reason_code == "EVIDENCE_UNVERIFIED"
+    finally:
+        _unseal(root)
