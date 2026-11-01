@@ -30,6 +30,7 @@ from octo.trusted_original import (
     ReadOnlyRegistry,
     Rejected,
     consume_trusted_original,
+    migration_claimed,
     normalize_binding,
     open_registry,
     runner_base_sha,
@@ -155,6 +156,8 @@ def _judge_receipt(
             return _blocked(scope, "BUILDER_PASS_FORBIDDEN")
         if receipt.get("signed_by") == "candidate-self-report":
             return _blocked(scope, "candidate self-report is not a TA reviewer receipt")
+        if migration_claimed(receipt):
+            return _blocked(scope, "SIGNATURE_MIGRATION_CLAIM")
         issuer = receipt.get("issuer") or receipt.get("reviewer")
         if isinstance(issuer, str) and issuer != TA_REVIEWER_ID:
             return _blocked(scope, "forged issuer")

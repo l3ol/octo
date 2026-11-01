@@ -13,7 +13,9 @@ import pytest
 
 from octo.closing import TA_REVIEWER_ID, _verified_original, run_n11
 from octo.g3_review import product_scope_digest
+from octo.scope_metadata import FORMAL_REVIEWER_ID, HISTORICAL_AGENT_ID
 from octo.trusted_original import (
+    ORIGINAL_AGENT_ID,
     ORIGINAL_REVIEWER_SESSION_ID,
     BindingTuple,
     Found,
@@ -573,7 +575,7 @@ def test_allowlist_miss_public_id_and_tb_custody_are_not_issuers(tmp_path):
     )
     row["source_evidence"]["issuer_agent_id"] = DEFAULT_EXPECTED_ISSUER
     row["source_evidence"]["issuer_session_id"] = ORIGINAL_REVIEWER_SESSION_ID
-    allow = _allowlist(tmp_path / "old-only.json", [TA_REVIEWER_ID], [ORIGINAL_REVIEWER_SESSION_ID])
+    allow = _allowlist(tmp_path / "old-only.json", [HISTORICAL_AGENT_ID], [ORIGINAL_REVIEWER_SESSION_ID])
     _production(root, [row])
     try:
         view = _view(root)
@@ -603,6 +605,76 @@ def test_allowlist_miss_public_id_and_tb_custody_are_not_issuers(tmp_path):
         assert tb.reason_code == "ISSUER_MISMATCH"
     finally:
         _unseal(stuffed)
+
+
+def test_formal_reviewer_is_not_the_historical_agent(tmp_path):
+    """MF-T281-01. The old agent id is not the runtime issuer, and a migration claim is not a signature."""
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "octo" / "trusted_original.py").read_text(encoding="utf-8")
+    closing = (root / "octo" / "closing.py").read_text(encoding="utf-8")
+    assert HISTORICAL_AGENT_ID not in source
+    assert HISTORICAL_AGENT_ID not in closing
+    assert TA_REVIEWER_ID == ORIGINAL_AGENT_ID == FORMAL_REVIEWER_ID
+    assert TA_REVIEWER_ID == "TA-CHAT-REVIEWER-OCTO-20261101-01"
+    historical = run_n11(
+        {"candidate_sha": CANDIDATE, "scope": {"route": ROUTE}},
+        at=AT,
+        independent_receipt={"issuer": HISTORICAL_AGENT_ID, "candidate_sha": CANDIDATE, "verdict": "PASS"},
+    )
+    assert historical["status"] == "BLOCKED"
+    assert "forged issuer" in historical["output"]["evidence"][0]["note"]
+    assert historical["output"]["verdict"] != "PASS"
+    migrated = run_n11(
+        {"candidate_sha": CANDIDATE, "scope": {"route": ROUTE}},
+        at=AT,
+        independent_receipt={
+            "issuer": TA_REVIEWER_ID,
+            "candidate_sha": CANDIDATE,
+            "verdict": "PASS",
+            "signature_migration_claimed": True,
+            "migrated_from_agent": HISTORICAL_AGENT_ID,
+            "signed_on_behalf_of": HISTORICAL_AGENT_ID,
+        },
+    )
+    assert migrated["status"] == "BLOCKED"
+    assert "SIGNATURE_MIGRATION_CLAIM" in migrated["output"]["evidence"][0]["note"]
+    assert migrated["output"]["verdict"] != "PASS"
+    current = run_n11(
+        {"candidate_sha": CANDIDATE, "scope": {"route": ROUTE}},
+        at=AT,
+        independent_receipt={"issuer": TA_REVIEWER_ID, "candidate_sha": CANDIDATE, "verdict": "PASS"},
+    )
+    assert "forged issuer" not in current["output"]["evidence"][0]["note"]
+    assert "SIGNATURE_MIGRATION_CLAIM" not in current["output"]["evidence"][0]["note"]
+    assert current["output"]["verdict"] != "PASS"
+    binding = normalize_binding(_tuple())
+    root = tmp_path / "migrate"
+    row = _record(root, binding_tuple=binding.as_dict())
+    row["signature_migration_claimed"] = True
+    _seal(root, [row])
+    try:
+        claimed = consume_trusted_original(binding, _view(root), set())
+    finally:
+        _unseal(root)
+    assert getattr(claimed, "reason_code", "") == "SIGNATURE_MIGRATION_CLAIM"
+    listed = tmp_path / "historical-issuer"
+    old = _record(
+        listed,
+        binding_tuple=_review_binding(),
+        content_kind="REVIEW_RECEIPT",
+        test_only=False,
+        issuer_id=HISTORICAL_AGENT_ID,
+        receipt_id="rcpt-old",
+    )
+    old["source_evidence"]["issuer_agent_id"] = HISTORICAL_AGENT_ID
+    old["source_evidence"]["issuer_session_id"] = ORIGINAL_REVIEWER_SESSION_ID
+    allow = _allowlist(tmp_path / "historical-allow.json", [HISTORICAL_AGENT_ID, FORMAL_REVIEWER_ID], [ORIGINAL_REVIEWER_SESSION_ID])
+    _production(listed, [old])
+    try:
+        refused = consume_trusted_original(_review_binding(), _view(listed), set(), allowlist_path=allow)
+    finally:
+        _unseal(listed)
+    assert getattr(refused, "reason_code", "") == "ISSUER_MISMATCH"
 
 
 def test_production_fixture_is_not_a_real_receipt(tmp_path):

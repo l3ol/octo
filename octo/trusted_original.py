@@ -36,16 +36,21 @@ from typing import Any, Mapping
 
 from octo.g3_review import product_scope_digest
 from octo.objects import digest
+from octo.scope_metadata import FORMAL_REVIEWER_ID, HISTORICAL_AGENT_ID
 
-TA_REVIEWER_ID = "agt_6ae61c44e54081918e81a0adea556ef8"
-ORIGINAL_AGENT_ID = TA_REVIEWER_ID
+# Current formal reviewer, same id as SCOPE-MANIFEST / handoff.
+# HISTORICAL_AGENT_ID is a sidenote and a migration detector. It is not an
+# acceptance identity. This module does not sign for it and does not claim
+# that its signatures moved.
+TA_REVIEWER_ID = FORMAL_REVIEWER_ID
+ORIGINAL_AGENT_ID = FORMAL_REVIEWER_ID
 ORIGINAL_REVIEWER_SESSION_ID = "6ae6216e-bbec-83e8-87dc-c3edd9027bcc"
 ORIGINAL_SESSION_ID = ORIGINAL_REVIEWER_SESSION_ID
 REGISTRY_ENV = "OCTO_TRUSTED_ORIGINAL_ROOT"
 ALLOWLIST_ENV = "OCTO_TRUST_ALLOWLIST"
 FIXTURE_DIGEST_ENV = "OCTO_FIXTURE_DIGEST"
 # Expected config value for the external issuer allowlist. Not an acceptance fallback.
-DEFAULT_EXPECTED_ISSUER = "TA-CHAT-REVIEWER-OCTO-20261101-01"
+DEFAULT_EXPECTED_ISSUER = TA_REVIEWER_ID
 ALLOWLIST_RUN_LOG: list[dict[str, str]] = []
 _CONSUMED_RECEIPTS: dict[str, set[str]] = {}
 CANDIDATE_ROOT = Path(__file__).resolve().parents[1]
@@ -332,8 +337,26 @@ def load_allowlists(path: Path | None = None) -> tuple[dict[str, list[str]], str
     return {"issuer_allowlist": issuers, "source_allowlist": sources}, sha
 
 
+def migration_claimed(record: Mapping[str, Any]) -> bool:
+    """A claim that an old signature moved, or that this code signed for that agent."""
+    blobs: list[Mapping[str, Any]] = [record]
+    evidence = record.get("source_evidence")
+    if isinstance(evidence, Mapping):
+        blobs.append(evidence)
+    for blob in blobs:
+        if blob.get("signature_migration_claimed") is True:
+            return True
+        if blob.get("signed_on_behalf_of") or blob.get("migrated_from_agent"):
+            return True
+    return False
+
+
 def _review_allowlist(record: Mapping[str, Any], allowlists: Mapping[str, list[str]]) -> str | None:
-    """Issuer and source are different lists. An agent id in the session field collides."""
+    """Issuer and source are different lists. An agent id in the session field collides.
+
+    The external allowlist stays a separate rule-config check. It does not
+    turn the historical agent id into the current formal reviewer.
+    """
     evidence = record.get("source_evidence")
     issuer = record.get("issuer_id")
     if not isinstance(evidence, dict) or not isinstance(issuer, str):
@@ -342,8 +365,12 @@ def _review_allowlist(record: Mapping[str, Any], allowlists: Mapping[str, list[s
     agent = evidence.get("issuer_agent_id")
     if not isinstance(session, str):
         return "EVIDENCE_UNVERIFIED"
-    if session == issuer or session.startswith("agt_"):
+    if session == issuer or session == HISTORICAL_AGENT_ID or session.startswith("agt_"):
         return "ISSUER_SESSION_COLLISION"
+    if issuer == HISTORICAL_AGENT_ID or agent == HISTORICAL_AGENT_ID:
+        return "ISSUER_MISMATCH"
+    if issuer != TA_REVIEWER_ID or (isinstance(agent, str) and agent != TA_REVIEWER_ID):
+        return "ISSUER_MISMATCH"
     issuers = set(allowlists.get("issuer_allowlist") or [])
     sources = set(allowlists.get("source_allowlist") or [])
     if issuer not in issuers:
@@ -400,7 +427,7 @@ def _evidence_ok(record: Mapping[str, Any]) -> str | None:
         return "EVIDENCE_UNVERIFIED"
     if issuer != ORIGINAL_AGENT_ID or agent != ORIGINAL_AGENT_ID:
         return "ISSUER_MISMATCH"
-    if session == issuer or session == TA_REVIEWER_ID or session.startswith("agt_"):
+    if session == issuer or session == TA_REVIEWER_ID or session == HISTORICAL_AGENT_ID or session.startswith("agt_"):
         return "ISSUER_SESSION_COLLISION"
     if session != ORIGINAL_SESSION_ID:
         return "ISSUER_MISMATCH"
@@ -448,6 +475,8 @@ def consume_trusted_original(
         return Rejected("EVIDENCE_UNVERIFIED")
     if not _kind_ok(record):
         return Rejected("EVIDENCE_UNVERIFIED")
+    if migration_claimed(record):
+        return Rejected("SIGNATURE_MIGRATION_CLAIM")
     if record.get("content_kind") != "REVIEW_RECEIPT":
         evidence_gap = _evidence_ok(record)
         if evidence_gap:
