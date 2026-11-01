@@ -8,6 +8,10 @@ from gates.types import make_result
 from gates.verification.ledger import ConsumptionLedger
 
 
+def _is_cas_publisher(publish) -> bool:
+    return callable(getattr(publish, "compare_and_swap", None)) and callable(getattr(publish, "read_ref", None)) and callable(getattr(publish, "transaction", None))
+
+
 def compare_and_merge(
     verified_candidate_sha: str,
     verified_base_sha: str,
@@ -20,62 +24,131 @@ def compare_and_merge(
     rule_version: str,
     rule_digest: str,
     publish: Callable[[], bool] | None = None,
+    board_publish: Callable[[], bool] | None = None,
 ):
     """Compare verified candidate SHA and verified base SHA at the merge slot.
 
-    Canonical parameter line 55 is left unchanged. This slot does not read a
-    candidate-supplied replacement for that comparison.
+    `publish is None` is fail-closed. It does not merge and it does not move a ref.
+    A real publisher is an isolated git update-ref adapter.
     """
-    head_ok = (
-        current_head_sha == verified_base_sha
-        and merge_candidate_sha == verified_candidate_sha
-    )
+    del current_head_sha  # the slot reads the publisher ref; a caller-supplied head is not authority
     fields = []
-    if current_head_sha != verified_base_sha:
-        fields.append("base")
     if merge_candidate_sha != verified_candidate_sha:
         fields.append("candidate")
-    record = {
-        "receipt_id": receipt_id,
-        "verified_candidate_sha": verified_candidate_sha,
-        "verified_base_sha": verified_base_sha,
-        "merge_candidate_sha": merge_candidate_sha,
-        "current_head_sha": current_head_sha,
-    }
-
-    def _publish() -> bool:
-        if publish is None:
-            return True
-        return publish() is True
-
-    outcome = ledger.finalize(
-        head_ok=head_ok,
-        receipt_id=receipt_id,
-        record=record,
-        publish=_publish,
-    )
     compared = {
         "verified_candidate_sha": verified_candidate_sha,
         "verified_base_sha": verified_base_sha,
-        "current_head_sha": current_head_sha,
         "merge_candidate_sha": merge_candidate_sha,
         "slot": "final",
     }
-    if outcome == "head_mismatch":
-        reason = "ATOMIC_MERGE_HEAD_MISMATCH"
-        decision = "REJECT"
+    if publish is None or not _is_cas_publisher(publish):
+        return _finish(
+            decision="REJECT",
+            reason="ATOMIC_MERGE_PUBLISHER_MISSING",
+            verified_candidate_sha=verified_candidate_sha,
+            verified_base_sha=verified_base_sha,
+            task_id=task_id,
+            rule_version=rule_version,
+            rule_digest=rule_digest,
+            outcome="publisher_missing",
+            details={
+                "compared": compared,
+                "mismatch_fields": fields,
+                "publisher": "missing",
+                "merged": False,
+                "landing_ref_before": None,
+                "landing_ref_after": None,
+            },
+        )
+    if fields:
+        before = publish.read_ref()
+        return _finish(
+            decision="REJECT",
+            reason="ATOMIC_MERGE_HEAD_MISMATCH",
+            verified_candidate_sha=verified_candidate_sha,
+            verified_base_sha=verified_base_sha,
+            task_id=task_id,
+            rule_version=rule_version,
+            rule_digest=rule_digest,
+            outcome="head_mismatch",
+            details={
+                "compared": compared,
+                "mismatch_fields": fields,
+                "publisher": "git-update-ref",
+                "merged": False,
+                "landing_ref_before": before,
+                "landing_ref_after": before,
+            },
+        )
+    try:
+        outcome, before, after = publish.transaction(
+            receipt_id=receipt_id,
+            expected_base=verified_base_sha,
+            new_commit=merge_candidate_sha,
+            board_fn=board_publish,
+        )
+    except Exception:
+        after = publish.read_ref()
+        return _finish(
+            decision="REJECT",
+            reason="GATE_INTERNAL_ERROR",
+            verified_candidate_sha=verified_candidate_sha,
+            verified_base_sha=verified_base_sha,
+            task_id=task_id,
+            rule_version=rule_version,
+            rule_digest=rule_digest,
+            outcome="publisher_exception",
+            details={
+                "compared": compared,
+                "mismatch_fields": fields,
+                "publisher": "git-update-ref",
+                "merged": False,
+                "landing_ref_before": None,
+                "landing_ref_after": after,
+                "path_b": False,
+            },
+        )
+    if outcome == "merged":
+        record = {
+            "receipt_id": receipt_id,
+            "verified_candidate_sha": verified_candidate_sha,
+            "verified_base_sha": verified_base_sha,
+            "merge_candidate_sha": merge_candidate_sha,
+            "landing_ref_after": after,
+        }
+        with ledger._lock:
+            ledger._consumed[receipt_id] = record
+            ledger.merges.append(record)
+        decision, reason = "PASS", None
     elif outcome == "conflict":
-        reason = "VERIFICATION_RECEIPT_CONFLICT"
-        decision = "REJECT"
+        decision, reason = "REJECT", "VERIFICATION_RECEIPT_CONFLICT"
     elif outcome == "board_invisible":
-        reason = "INTEGRITY_BOARD_INVISIBLE"
-        decision = "REJECT"
-    elif outcome == "merged":
-        reason = None
-        decision = "PASS"
+        decision, reason = "REJECT", "INTEGRITY_BOARD_INVISIBLE"
+    elif outcome == "head_mismatch":
+        decision, reason = "REJECT", "ATOMIC_MERGE_HEAD_MISMATCH"
     else:
-        reason = "GATE_INTERNAL_ERROR"
-        decision = "REJECT"
+        decision, reason = "REJECT", "GATE_INTERNAL_ERROR"
+    return _finish(
+        decision=decision,
+        reason=reason,
+        verified_candidate_sha=verified_candidate_sha,
+        verified_base_sha=verified_base_sha,
+        task_id=task_id,
+        rule_version=rule_version,
+        rule_digest=rule_digest,
+        outcome=outcome,
+        details={
+            "compared": compared,
+            "mismatch_fields": fields,
+            "publisher": "git-update-ref",
+            "merged": outcome == "merged",
+            "landing_ref_before": before,
+            "landing_ref_after": after,
+        },
+    )
+
+
+def _finish(*, decision, reason, verified_candidate_sha, verified_base_sha, task_id, rule_version, rule_digest, outcome, details):
     return make_result(
         gate="atomic_merge",
         decision=decision,
@@ -93,6 +166,6 @@ def compare_and_merge(
                 "outcome": outcome,
             }
         ],
-        details={"compared": compared, "mismatch_fields": fields, "merged": outcome == "merged"},
+        details=details,
         rule_digest=rule_digest,
     )

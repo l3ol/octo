@@ -14,11 +14,18 @@ REQUIRED_GATES = ("scope", "verification", "policy")
 class Board:
     visible: bool = True
     entries: list = field(default_factory=list)
+    drill_entries: dict = field(default_factory=dict)
 
     def read_all(self) -> list:
         if not self.visible:
             return []
         return list(self.entries)
+
+    def remember_drill(self, entry_id: str, entry: dict) -> None:
+        self.drill_entries[entry_id] = dict(entry)
+
+    def read_drill(self, entry_id: str):
+        return self.drill_entries.get(entry_id)
 
 
 def publish_board(

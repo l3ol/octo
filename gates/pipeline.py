@@ -51,6 +51,8 @@ class LandingRequest:
     head_sha: str | None = None
     tags: dict | None = None
     merge_candidate_sha: str | None = None
+    publisher: object | None = None
+    recovery_repo: str | None = None
 
 
 def _summary(result: GateResult) -> dict:
@@ -199,12 +201,12 @@ def _evaluate_pinned(request: LandingRequest, runtime) -> GateResult:
         rule_digest=rules.digest,
     )
     binding_result = binding_decide([scope_result, verification_result, policy_result])
-    exists = request.commit_exists or (lambda _sha: False)
     recovery_result = verify_recovery(
         request.recovery_plan,
         request.candidate_sha,
         request.base_sha,
-        commit_exists=exists,
+        repo=request.recovery_repo,
+        board=request.board,
         rule_version=request.rule_version,
         task_id=request.task_id if isinstance(request.task_id, str) else None,
         rule_digest=rules.digest,
@@ -292,7 +294,8 @@ def _evaluate_pinned(request: LandingRequest, runtime) -> GateResult:
             task_id=request.task_id if isinstance(request.task_id, str) else None,
             rule_version=request.rule_version,
             rule_digest=rules.digest,
-            publish=publish,
+            publish=request.publisher,
+            board_publish=publish,
         )
         checks["atomic_merge"] = merge_result.public_dict()
         if "board" in holder:
@@ -304,8 +307,9 @@ def _evaluate_pinned(request: LandingRequest, runtime) -> GateResult:
         "merged": merged,
         "merge_attempted": merge_attempted,
         "fallback_used": False,
-        "runtime_source": "pin",
-        "candidate_code_used": False,
+        "runtime_source": getattr(runtime, "source", "pin"),
+        "evidence_class": "REAL_ISOLATION_EVIDENCE" if getattr(runtime, "source", "") == "pin_loadpath" else "STACK_OK_BUILDER_EVIDENCE",
+        "candidate_code_used": None,
         "gates_pin_sha_source": "external_manifest",
         "kill_line_event": policy_details.get("kill_line_event"),
         "head_observation": {

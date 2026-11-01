@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 
 from gates.activation.state import ActivationState
 from gates.integrity.board import Board
@@ -20,7 +21,7 @@ ROLLBACK = "e" * 40
 TASK = "GATES-BUILD-2026-11-01"
 REVIEWER_SECRET = b"reviewer-test-secret"
 FOUNDER_SECRET = b"founder-activation-test-secret"
-# Fixture object id created inside the test object store. Not the shipped pin.
+# STACK_OK_BUILDER only. Not a real pin and not valid REAL_ISOLATION_EVIDENCE.
 PIN = "0123456789abcdef0123456789abcdef01234567"
 TREE = "fedcba9876543210fedcba9876543210fedcba98"
 
@@ -143,7 +144,55 @@ def recovery_plan(
 
 
 def commit_exists(sha: str) -> bool:
+    """Legacy predicate. Not proof for verify_recovery (REAL drills use git cat-file)."""
     return sha == ROLLBACK
+
+
+def prepare_real_landing():
+    """Isolated git slot + executed L1 drill. Landing SHAs are real commits."""
+    import tempfile
+    from pathlib import Path
+
+    from gates.cas import GitCasPublisher
+    from gates.gitcmd import rev_parse, run_git, update_ref
+    from gates.integrity.drill import execute_recovery_drill
+
+    root = Path(tempfile.mkdtemp(prefix="gates-landing-"))
+    repo = root / "repo"
+    repo.mkdir()
+    run_git(repo, "init", "-q", "-b", "main")
+    (repo / "drills").mkdir()
+    (repo / "drills" / "recover.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    run_git(repo, "add", "drills/recover.sh")
+    run_git(repo, "commit", "-q", "-m", "rollback")
+    rollback = rev_parse(repo, "HEAD")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    run_git(repo, "add", "base.txt")
+    run_git(repo, "commit", "-q", "-m", "base")
+    base = rev_parse(repo, "HEAD")
+    (repo / "candidate.txt").write_text("candidate\n", encoding="utf-8")
+    run_git(repo, "add", "candidate.txt")
+    run_git(repo, "commit", "-q", "-m", "candidate")
+    candidate = rev_parse(repo, "HEAD")
+    update_ref(repo, "refs/heads/gates-isolated-slot", base)
+    plan = execute_recovery_drill(
+        repo,
+        candidate_sha=candidate,
+        base_sha=base,
+        rollback_sha=rollback,
+        evidence_dir=root / "l1-recovery-drill" / "evidence",
+        board_dir=root / "l1-recovery-drill" / "board",
+    )
+    board = Board()
+    board.remember_drill(plan["drill_board_entry_id"], json.loads(Path(plan["drill_board_path"]).read_text(encoding="utf-8")))
+    return {
+        "repo": str(repo),
+        "candidate": candidate,
+        "base": base,
+        "publisher": GitCasPublisher(repo, "refs/heads/gates-isolated-slot"),
+        "plan": plan,
+        "board": board,
+    }
 
 
 def assert_machine_readable(result) -> None:
@@ -168,27 +217,28 @@ def assert_machine_readable(result) -> None:
 def valid_request(**overrides):
     from gates.pipeline import LandingRequest
 
+    landing = prepare_real_landing()
     manifest, store = pin_material()
     state = ActivationState(path_b_enabled=True, environment="isolated")
     payload = dict(
         task_id=TASK,
-        candidate_sha=CANDIDATE,
-        base_sha=BASE,
+        candidate_sha=landing["candidate"],
+        base_sha=landing["base"],
         changed_paths=["src/app.py"],
         blobs=[("src/app.py", b"print('ok')\n")],
-        receipt=reviewer_receipt(),
+        receipt=reviewer_receipt(candidate=landing["candidate"], base=landing["base"]),
         registry=registry(),
         trusted_issuers={"reviewer-bot": REVIEWER_SECRET},
         ledger=ConsumptionLedger(),
         target_branch_config={},
-        current_head_sha=BASE,
+        current_head_sha=landing["base"],
         activation_state=state,
-        board=Board(visible=True),
+        board=landing["board"],
         external_manifest=manifest,
         object_store=store,
         rule_version=RULE_VERSION,
         lineage=[],
-        recovery_plan=recovery_plan(),
+        recovery_plan=landing["plan"],
         irreversible=False,
         audit_log=RuleAuditLog(),
         candidate_rules=None,
@@ -197,6 +247,8 @@ def valid_request(**overrides):
         head_sha=None,
         tags=None,
         merge_candidate_sha=None,
+        publisher=landing["publisher"],
+        recovery_repo=landing["repo"],
     )
     payload.update(overrides)
     return LandingRequest(**payload)

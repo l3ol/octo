@@ -6,7 +6,9 @@ STACK_OK_BUILDER_EVIDENCE only. These runs are not independent acceptance.
 from __future__ import annotations
 
 import hashlib
+import json
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -107,7 +109,8 @@ def test_scene_02_secret_trips_kill_line():
     assert event["escalated_to"] == "founder"
     assert req.activation_state.kill_line_tripped is True
     assert req.activation_state.path_b_enabled is False
-    follow = valid_request(activation_state=req.activation_state, receipt=reviewer_receipt(receipt_id="rcpt-after-kill"))
+    follow = valid_request(activation_state=req.activation_state)
+    follow.receipt = reviewer_receipt(candidate=follow.candidate_sha, base=follow.base_sha, receipt_id="rcpt-after-kill")
     assert land(follow).reason_code == "ACTIVATION_KILL_LINE"
 
 
@@ -117,12 +120,12 @@ def test_scene_03_candidate_drift():
 
 
 def test_scene_04_base_stale():
-    req = valid_request(
-        base_sha=OTHER,
-        current_head_sha=OTHER,
-        receipt=reviewer_receipt(base=BASE),
-        recovery_plan=recovery_plan(base=OTHER),
-    )
+    req = valid_request()
+    old_base = req.base_sha
+    req.base_sha = OTHER
+    req.current_head_sha = OTHER
+    req.receipt = reviewer_receipt(candidate=req.candidate_sha, base=old_base)
+    req.recovery_plan = recovery_plan(candidate=req.candidate_sha, base=OTHER)
     result = land(req)
     assert result.reason_code == "VERIFICATION_BASE_STALE"
     assert result.evidence["details"]["head_observation"]["reason_code"] != "ATOMIC_MERGE_HEAD_MISMATCH"
@@ -142,6 +145,7 @@ def test_scene_06_positive_and_reverse_without_pass():
     assert result.decision == "PASS"
     assert result.reason_code is None
     assert result.evidence["details"]["merged"] is True
+    assert req.publisher.read_ref() == req.candidate_sha
     assert result.evidence["checks"]["scope"]["decision"] == "PASS"
     assert result.evidence["checks"]["verification"]["decision"] == "PASS"
     assert result.evidence["checks"]["binding"]["decision"] == "PASS"
@@ -162,7 +166,9 @@ def test_scene_07_emergency_stop_freezes_later_packages():
     signal = signal_emergency_stop(state, actor="founder", **_ids())
     assert signal.reason_code == "ACTIVATION_EMERGENCY_STOP"
     first = land(valid_request(activation_state=state))
-    second = land(valid_request(activation_state=state, receipt=reviewer_receipt(receipt_id="rcpt-2")))
+    second_req = valid_request(activation_state=state)
+    second_req.receipt = reviewer_receipt(candidate=second_req.candidate_sha, base=second_req.base_sha, receipt_id="rcpt-2")
+    second = land(second_req)
     assert first.reason_code == "ACTIVATION_EMERGENCY_STOP"
     assert second.reason_code == "ACTIVATION_EMERGENCY_STOP"
     assert first.evidence["details"]["merged"] is False
@@ -446,17 +452,32 @@ def test_scene_17_gate_tamper_downgrade_and_audit():
 
 
 def test_scene_18_head_moved_before_merge():
-    moved = land(valid_request(current_head_sha="f" * 40))
+    req = valid_request()
+    before = req.publisher.read_ref()
+    racer = req.publisher.make_other_commit()
+    assert req.publisher.read_ref() == before
+
+    def _advance():
+        req.publisher.force_ref(racer)
+
+    req.publisher.before_update = _advance
+    moved = land(req)
     assert moved.reason_code == "ATOMIC_MERGE_HEAD_MISMATCH"
     assert moved.evidence["details"]["merged"] is False
     assert moved.evidence["checks"]["binding"]["decision"] == "PASS"
-    req = valid_request(current_head_sha="f" * 40)
-    land(req)
+    merge_details = moved.evidence["checks"]["atomic_merge"]["evidence"]["details"]
+    assert merge_details["landing_ref_after"] == racer
+    assert merge_details["merged"] is False
+    assert req.publisher.read_ref() == racer
     assert req.ledger.is_consumed(req.receipt["receipt_id"]) is False
 
-    swapped = land(valid_request(merge_candidate_sha="9" * 40))
+    parked = valid_request(merge_candidate_sha="9" * 40)
+    ref_before = parked.publisher.read_ref()
+    swapped = land(parked)
     assert swapped.reason_code == "ATOMIC_MERGE_HEAD_MISMATCH"
     assert "candidate" in swapped.evidence["checks"]["atomic_merge"]["evidence"]["details"]["mismatch_fields"]
+    assert parked.publisher.read_ref() == ref_before
+    assert swapped.evidence["details"]["merged"] is False
 
 
 def test_scene_19_already_consumed_is_the_only_failure():
@@ -482,39 +503,9 @@ def test_scene_19_already_consumed_is_the_only_failure():
 
 
 def test_scene_20_concurrent_receipt_one_winner():
-    from gates.verification.ledger import ConsumptionLedger
+    from tests.gates.test_real_evidence import assert_scene_20_real_race
 
-    ledger = ConsumptionLedger()
-    barrier = threading.Barrier(2)
-    results = []
-
-    def worker():
-        barrier.wait()
-        results.append(
-            compare_and_merge(
-                CANDIDATE,
-                BASE,
-                "rcpt-race",
-                current_head_sha=BASE,
-                merge_candidate_sha=CANDIDATE,
-                ledger=ledger,
-                task_id=TASK,
-                rule_version=RULE_VERSION,
-                rule_digest=RULE_DIGEST,
-                publish=lambda: True,
-            )
-        )
-
-    threads = [threading.Thread(target=worker) for _ in range(2)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    assert sorted(result.decision for result in results) == ["PASS", "REJECT"]
-    codes = [result.reason_code for result in results]
-    assert codes.count(None) == 1
-    assert codes.count("VERIFICATION_RECEIPT_CONFLICT") == 1
-    assert len(ledger.merges) == 1
+    assert_scene_20_real_race()
 
 
 def test_scene_21_sha_mismatch_substitution():
@@ -658,7 +649,7 @@ def test_scene_26_pin_fail_closed_and_path_filter():
         )
     )
     assert touched.reason_code == "TAMPER_GATES_PATH_TOUCHED"
-    assert touched.evidence["details"]["candidate_code_used"] is False
+    assert touched.evidence["details"]["evidence_class"] == "STACK_OK_BUILDER_EVIDENCE"
 
 
 def test_scene_27_compare_and_merge_bypass_rejected():
@@ -733,47 +724,90 @@ def test_scene_33_reopen_when_four_conditions_hold():
 
 
 def test_scene_34_and_35_recovery_verification():
+    req = valid_request()
     missing_commit = verify_recovery(
-        recovery_plan(rollback="f" * 40),
-        CANDIDATE,
-        BASE,
-        commit_exists=commit_exists,
+        {"rollback_commit": "f" * 40, "bound_candidate_sha": req.candidate_sha, "bound_base_sha": req.base_sha, "drill_passed": True},
+        req.candidate_sha,
+        req.base_sha,
+        repo=req.recovery_repo,
+        board=req.board,
         rule_version=RULE_VERSION,
         task_id=TASK,
         rule_digest=RULE_DIGEST,
     )
     assert missing_commit.reason_code == "INTEGRITY_RECOVERY_UNVERIFIED"
     assert missing_commit.evidence["details"]["message"] == UNVERIFIED_MESSAGE
+    hand_filled = verify_recovery(
+        {
+            "rollback_commit": req.recovery_plan["rollback_commit"],
+            "bound_candidate_sha": req.candidate_sha,
+            "bound_base_sha": req.base_sha,
+            "drill_passed": True,
+        },
+        req.candidate_sha,
+        req.base_sha,
+        repo=req.recovery_repo,
+        board=req.board,
+        rule_version=RULE_VERSION,
+        task_id=TASK,
+        rule_digest=RULE_DIGEST,
+    )
+    assert hand_filled.reason_code == "INTEGRITY_RECOVERY_UNVERIFIED"
+    failed = json.loads(Path(req.recovery_plan["drill_receipt_path"]).read_text(encoding="utf-8"))
+    failed["result"] = "FAIL"
+    failed_path = Path(req.recovery_plan["drill_receipt_path"]).with_name("drill-fail.json")
+    failed_path.write_text(json.dumps(failed), encoding="utf-8")
+    failed_plan = dict(req.recovery_plan)
+    failed_plan["drill_receipt_path"] = str(failed_path)
+    failed_plan["drill_receipt"] = failed
     failed_drill = verify_recovery(
-        recovery_plan(drill_passed=False),
-        CANDIDATE,
-        BASE,
-        commit_exists=commit_exists,
+        failed_plan,
+        req.candidate_sha,
+        req.base_sha,
+        repo=req.recovery_repo,
+        board=req.board,
         rule_version=RULE_VERSION,
         task_id=TASK,
         rule_digest=RULE_DIGEST,
     )
     assert failed_drill.reason_code == "INTEGRITY_RECOVERY_UNVERIFIED"
-    unbound = verify_recovery(
-        recovery_plan(candidate=OTHER),
-        CANDIDATE,
-        BASE,
-        commit_exists=commit_exists,
+    unbound = dict(req.recovery_plan)
+    unbound["bound_candidate_sha"] = OTHER
+    assert verify_recovery(
+        unbound,
+        req.candidate_sha,
+        req.base_sha,
+        repo=req.recovery_repo,
+        board=req.board,
         rule_version=RULE_VERSION,
         task_id=TASK,
         rule_digest=RULE_DIGEST,
-    )
-    assert unbound.reason_code == "INTEGRITY_RECOVERY_UNVERIFIED"
+    ).reason_code == "INTEGRITY_RECOVERY_UNVERIFIED"
+    no_board = dict(req.recovery_plan)
+    no_board["drill_board_entry_id"] = "missing-entry"
+    assert verify_recovery(
+        no_board,
+        req.candidate_sha,
+        req.base_sha,
+        repo=req.recovery_repo,
+        board=req.board,
+        rule_version=RULE_VERSION,
+        task_id=TASK,
+        rule_digest=RULE_DIGEST,
+    ).reason_code == "INTEGRITY_RECOVERY_UNVERIFIED"
     passed = verify_recovery(
-        recovery_plan(),
-        CANDIDATE,
-        BASE,
-        commit_exists=commit_exists,
+        req.recovery_plan,
+        req.candidate_sha,
+        req.base_sha,
+        repo=req.recovery_repo,
+        board=req.board,
         rule_version=RULE_VERSION,
         task_id=TASK,
         rule_digest=RULE_DIGEST,
     )
     assert passed.decision == "PASS"
+    assert passed.evidence["details"]["drill_passed"] is True
+    assert passed.evidence["details"]["drill_passed_source"] == "drill_receipt.result"
 
 
 @pytest.mark.parametrize(
