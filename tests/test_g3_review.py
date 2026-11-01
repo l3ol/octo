@@ -119,7 +119,20 @@ def test_product_scope_and_three_column_fixture_digest_recompute():
     assert strategy["ops_evidence"]["intake_sha256"] == (
         "fdd32d46013f6ccc6fdee391ca5daa7f337337e772fcecd468baba9073876e4b"
     )
-    assert scope["reviewer_separation"]["builder_may_sign_pass"] is False
+    separation = scope["reviewer_separation"]
+    assert separation["builder_may_sign_pass"] is False
+    assert separation["g3_requires_reviewer_qualification_after_candidate_freeze"] is True
+    assert separation["review_entry_issues_pass"] is False
+    assert separation["squad_reviewer_prepares_entry_only"] is True
+    assert separation["formal_reviewer_id"] == "TA-CHAT-REVIEWER-OCTO-20261101-01"
+    assert separation["g3_reviewer_agent_id"] == "TA-CHAT-REVIEWER-OCTO-20261101-01"
+    assert separation["signature_migration_claimed"] is False
+    assert separation["historical_reviewer_note"]["prior_agent_id"] == "agt_6ae61c44e54081918e81a0adea556ef8"
+    assert separation["historical_reviewer_note"]["current_formal_reviewer"] is False
+    assert scope["handoff"]["formal_reviewer_id"] == "TA-CHAT-REVIEWER-OCTO-20261101-01"
+    assert scope["handoff"]["final_sha"] is False
+    assert scope["handoff"]["tip_f95_final"] is False
+    assert scope["handoff"]["freeze_status"] == "NONFINAL_HOLD_AE"
     raw_manifest = (ROOT / "SOURCE-IMPORT-MANIFEST-G2-S1.json").read_bytes()
     assert scope["source_import_manifest"]["sha256"] == hashlib.sha256(raw_manifest).hexdigest()
     assert product_scope_digest() == digest(json.loads(SCOPE_PATH.read_text(encoding="utf-8")))

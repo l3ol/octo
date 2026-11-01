@@ -99,11 +99,26 @@
     "N12",
     "N13"
   ],
+  "handoff": {
+    "final_sha": false,
+    "formal_reviewer_id": "TA-CHAT-REVIEWER-OCTO-20261101-01",
+    "freeze_status": "NONFINAL_HOLD_AE",
+    "signature_migration_claimed": false,
+    "tip_f95_final": false,
+    "tip_f95_role": "mechanism_retest_evidence_only"
+  },
   "reviewer_separation": {
     "builder_may_sign_pass": false,
+    "formal_reviewer_id": "TA-CHAT-REVIEWER-OCTO-20261101-01",
     "g3_requires_reviewer_qualification_after_candidate_freeze": true,
-    "g3_reviewer_agent_id": "agt_6ae61c44e54081918e81a0adea556ef8",
+    "g3_reviewer_agent_id": "TA-CHAT-REVIEWER-OCTO-20261101-01",
+    "historical_reviewer_note": {
+      "current_formal_reviewer": false,
+      "prior_agent_id": "agt_6ae61c44e54081918e81a0adea556ef8",
+      "signature_migration_claimed": false
+    },
     "review_entry_issues_pass": false,
+    "signature_migration_claimed": false,
     "squad_reviewer_prepares_entry_only": true
   },
   "route": "Standard internal_readonly with N9 precheck before N10",
