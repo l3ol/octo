@@ -36,7 +36,7 @@ def _git(*args: str) -> str:
 def _write_manifest(path: Path, store: Path, candidate_sha: str, items: list[dict], *, sealed: bool = False) -> None:
     path.write_text(json.dumps({
         "kind": "external_runtime_artifact_inventory",
-        "bound_candidate_sha": candidate_sha,
+        "candidate_sha": candidate_sha,
         "store_root": str(store.resolve()),
         "sealed": sealed,
         "items": items,
@@ -59,9 +59,8 @@ def _external(tmp_path: Path, candidate_sha: str, *, bodies: dict[str, bytes] | 
         items.append({
             "kind": kind,
             "path": artifact.name,
-            "content_sha256": hashlib.sha256(body).hexdigest(),
+            "sha256": hashlib.sha256(body).hexdigest(),
             "bytes": len(body),
-            "bound_candidate_sha": candidate_sha,
         })
     manifest = tmp_path / "runtime-manifest.json"
     _write_manifest(manifest, store, candidate_sha, items)
@@ -236,9 +235,17 @@ def test_one_byte_change_moves_runtime_and_fixture_digests(tmp_path):
     candidate_sha = _git("rev-parse", "HEAD")
     manifest = _external(tmp_path, candidate_sha)
     before = column_digests(runtime_manifest=manifest, candidate_sha=candidate_sha)
-    rows = verified_runtime_inventory(manifest, candidate_sha=candidate_sha)
-    assert before["runtime_artifact_digest"] == digest(rows)
-    assert [row["path"] for row in rows] == sorted(row["path"] for row in rows)
+    body = verified_runtime_inventory(manifest, candidate_sha=candidate_sha)
+    assert before["runtime_artifact_digest"] == digest(body)
+    assert body["kind"] == "external_runtime_artifact_inventory"
+    assert body["candidate_sha"] == candidate_sha
+    assert [tuple(row) for row in body["items"]] 
+    assert [(row["kind"], row["path"]) for row in body["items"]] == sorted(
+        ((row["kind"], row["path"]) for row in body["items"]),
+        key=lambda item: (item[0], item[1]),
+    )
+    assert all(set(row) == {"bytes", "kind", "path", "sha256"} for row in body["items"])
+    assert all(row["path"].startswith("/") for row in body["items"])
     assert before["fixture_digest"] == digest({
         "template_digest": before["template_digest"],
         "runtime_artifact_digest": before["runtime_artifact_digest"],
@@ -262,6 +269,19 @@ def test_one_byte_change_moves_runtime_and_fixture_digests(tmp_path):
     assert after["isolation_policy_digest"] == before["isolation_policy_digest"] == isolation_policy_digest()
 
 
+def test_f_a24_07_relative_and_absolute_paths_share_one_digest(tmp_path):
+    candidate_sha = _git("rev-parse", "HEAD")
+    manifest = _external(tmp_path, candidate_sha)
+    relative = runtime_artifact_digest(manifest, candidate_sha=candidate_sha)
+    document = json.loads(manifest.read_text(encoding="utf-8"))
+    store = Path(document["store_root"])
+    for item in document["items"]:
+        item["path"] = (store / item["path"]).resolve().as_posix()
+    absolute = tmp_path / "absolute-manifest.json"
+    absolute.write_text(json.dumps(document), encoding="utf-8")
+    assert runtime_artifact_digest(absolute, candidate_sha=candidate_sha) == relative
+
+
 def test_fail_closed_on_missing_escape_mismatch_and_empty(tmp_path):
     candidate_sha = _git("rev-parse", "HEAD")
     manifest = _external(tmp_path, candidate_sha)
@@ -276,8 +296,7 @@ def test_fail_closed_on_missing_escape_mismatch_and_empty(tmp_path):
     _write_manifest(escaped, store, candidate_sha, [{
         "kind": "grant",
         "path": str(outside.resolve()),
-        "content_sha256": hashlib.sha256(outside.read_bytes()).hexdigest(),
-        "bound_candidate_sha": candidate_sha,
+        "sha256": hashlib.sha256(outside.read_bytes()).hexdigest(),
         "bytes": outside.stat().st_size,
     }])
     with pytest.raises(ValueError, match="PATH_ESCAPE"):
@@ -299,9 +318,8 @@ def test_rewrite_and_cycle_members_are_rejected(tmp_path):
     candidate_sha = _git("rev-parse", "HEAD")
     manifest = _external(tmp_path, candidate_sha)
     inventory = verified_runtime_inventory(manifest, candidate_sha=candidate_sha)
-    assert isinstance(inventory, list)
-    assert all(set(row) == {"bound_candidate_sha", "bytes", "content_sha256", "kind", "path"} for row in inventory)
-    assert "runtime-manifest.json" not in {row["path"] for row in inventory}
+    assert set(inventory) == {"kind", "candidate_sha", "items"}
+    assert "runtime-manifest.json" not in {row["path"] for row in inventory["items"]}
     sealed = tmp_path / "sealed-manifest.json"
     sealed.write_text(manifest.read_text(encoding="utf-8").replace('"sealed": false', '"sealed": true'), encoding="utf-8")
     frozen = (tmp_path / "isolation-store" / "receipt.json").read_bytes()
@@ -316,8 +334,7 @@ def test_rewrite_and_cycle_members_are_rejected(tmp_path):
     _write_manifest(cycle, store, candidate_sha, [{
         "kind": "receipt",
         "path": receipt.name,
-        "content_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
-        "bound_candidate_sha": candidate_sha,
+        "sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
         "bytes": receipt.stat().st_size,
     }])
     with pytest.raises(ValueError, match="CYCLE_INPUT_FORBIDDEN"):
@@ -328,8 +345,7 @@ def test_rewrite_and_cycle_members_are_rejected(tmp_path):
     listed["items"] = [{
         "kind": "log",
         "path": snapshot.name,
-        "content_sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
-        "bound_candidate_sha": candidate_sha,
+        "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
         "bytes": snapshot.stat().st_size,
     }]
     cycle.write_text(json.dumps(listed), encoding="utf-8")

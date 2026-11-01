@@ -13,12 +13,15 @@ A2-4 fixture composition, also via ``octo.objects.digest``:
   ``tests/fixtures/g2s1/templates/``. ``sha256`` is the raw file bytes.
 - ``isolation_policy_digest`` hashes
   ``tests/fixtures/g2s1/isolation-policy.json``.
-- ``runtime_artifact_digest`` hashes a verified external inventory:
-  ``{kind, candidate_sha, items:[{bytes, kind, path, sha256}]}``.
-  The in-repo schema ``runtime-artifact-inventory.json`` is not that input.
-  Each item must be a real grant, request, receipt, or log file outside the
-  candidate tree, confined to ``store_root``, with matching byte length and
-  content sha256. The manifest must bind ``candidate_sha``.
+- ``runtime_artifact_digest`` is ``octo.objects.digest`` of the only
+  acceptance object ``{kind:"external_runtime_artifact_inventory",
+  candidate_sha, items:[{bytes, kind, path, sha256}]}``.
+  ``items`` are sorted by ``(kind, path)``. ``path`` in that object is
+  ``Path.resolve().as_posix()`` after confinement to ``store_root``.
+  A manifest may store a path relative to ``store_root``; it is normalized
+  before the hash. ``content_sha256`` is read only as an alias of ``sha256``.
+  ``bound_candidate_sha`` is read only as an alias of the top-level
+  ``candidate_sha``. The in-repo schema is not an input.
 - ``fixture_digest`` hashes
   ``{template_digest, runtime_artifact_digest, isolation_policy_digest}``.
   It is refused when the external manifest is missing or does not verify.
@@ -126,12 +129,11 @@ def _inside(path: Path, root: Path) -> bool:
     return True
 
 
-def verified_runtime_inventory(manifest_path: Path | str, *, candidate_sha: str) -> list[dict]:
-    """Return A24 rows. This list, sorted by ``path``, is the hash input.
+def verified_runtime_inventory(manifest_path: Path | str, *, candidate_sha: str) -> dict:
+    """Return the A24 v2 hash object.
 
-    Each row has exactly ``bound_candidate_sha``, ``bytes``, ``content_sha256``,
-    ``kind``, and ``path``. The manifest file, review receipt, snapshot, and
-    fixture-digest record are not rows.
+    Shape: ``{kind, candidate_sha, items:[{bytes, kind, path, sha256}]}``.
+    ``items`` are sorted by ``(kind, path)``. ``path`` is absolute resolved POSIX.
     """
     candidate_sha = require_candidate_sha(candidate_sha)
     manifest = Path(manifest_path)
@@ -166,12 +168,17 @@ def verified_runtime_inventory(manifest_path: Path | str, *, candidate_sha: str)
         if kind not in REQUIRED_ARTIFACT_KINDS:
             raise ValueError("KIND_INVALID")
         relative = raw.get("path")
-        if not isinstance(relative, str) or relative.startswith("/") or ".." in Path(relative).parts:
+        if not isinstance(relative, str) or not relative or ".." in Path(relative).parts:
             raise ValueError("PATH_ESCAPE")
-        if "content_sha256" not in raw or "bytes" not in raw or "bound_candidate_sha" not in raw:
-            raise ValueError("runtime artifact item requires path, bytes, content_sha256, and bound_candidate_sha")
+        declared_sha = raw.get("sha256", raw.get("content_sha256"))
+        if declared_sha is None or "bytes" not in raw:
+            raise ValueError("runtime artifact item requires path, bytes, and sha256")
+        if "sha256" in raw and "content_sha256" in raw and raw["sha256"] != raw["content_sha256"]:
+            raise ValueError("CONTENT_SHA_MISMATCH")
+        raw_path = Path(relative)
+        candidate_path = raw_path if raw_path.is_absolute() else store_root_path / raw_path
         try:
-            confined = safe_path(store_root_path / relative, store_root_path)
+            confined = safe_path(candidate_path, store_root_path)
         except Denied as exc:
             raise ValueError("PATH_ESCAPE") from exc
         if not confined.is_file():
@@ -185,32 +192,32 @@ def verified_runtime_inventory(manifest_path: Path | str, *, candidate_sha: str)
         seen.add(confined.resolve())
         content = confined.read_bytes()
         file_sha = hashlib.sha256(content).hexdigest()
-        if file_sha != file_digest(raw["content_sha256"]):
+        if file_sha != file_digest(declared_sha):
             code = "POST_FREEZE_REWRITE" if document.get("sealed") is True else "CONTENT_SHA_MISMATCH"
             raise ValueError(code)
         if type(raw["bytes"]) is not int or raw["bytes"] != len(content):
             raise ValueError("BYTES_MISMATCH")
-        if require_candidate_sha(raw["bound_candidate_sha"]) != candidate_sha:
+        item_candidate = raw.get("candidate_sha", raw.get("bound_candidate_sha"))
+        if item_candidate is not None and require_candidate_sha(item_candidate) != candidate_sha:
             raise ValueError("CANDIDATE_SHA_MISMATCH")
         items.append({
-            "bound_candidate_sha": candidate_sha,
             "bytes": len(content),
-            "content_sha256": file_sha,
             "kind": kind,
-            "path": relative,
+            "path": confined.resolve().as_posix(),
+            "sha256": file_sha,
         })
     if not REQUIRED_ARTIFACT_KINDS <= {item["kind"] for item in items}:
         raise ValueError("runtime manifest must list grant, request, receipt, and log")
-    items.sort(key=lambda item: item["path"])
-    return items
+    items.sort(key=lambda item: (item["kind"], item["path"]))
+    return {
+        "kind": "external_runtime_artifact_inventory",
+        "candidate_sha": candidate_sha,
+        "items": items,
+    }
 
 
 def runtime_artifact_digest(manifest_path: Path | str, *, candidate_sha: str) -> str:
-    """A24: sha256(canonical JSON of rows sorted by relative path).
-
-    The hash input is that list only, not a wrapper object and not the
-    in-repo schema file.
-    """
+    """A24 v2: ``octo.objects.digest`` of the external inventory object."""
     return digest(verified_runtime_inventory(manifest_path, candidate_sha=candidate_sha))
 
 
