@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import errno
+import hashlib
 import json
 import multiprocessing
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 
@@ -21,6 +24,7 @@ from gates.isolation_bed import (
     resolved_paths,
     snapshot_pin_commit,
 )
+from gates.readonly_ns import protect_readonly, seal_against_remount
 from gates.rules import CANONICAL_SHA256, RULE_DIGEST, RULE_VERSION
 from gates.tamper.loader import load_default_manifest, load_pin
 from gates.verification.ledger import ConsumptionLedger
@@ -107,6 +111,37 @@ def _assert_visible_authority_bed() -> None:
     assert details["candidate_claimed_pin_ignored"] == "f" * 40
     assert details["head_sha_ignored"] == "e" * 40
     assert load_default_manifest()["gates_pin_sha"] == "UNSET_FAIL_CLOSED"
+    pin_path = auth["pin_loadpath"]
+    if pin_path.is_dir():
+        _require_pin_readonly(pin_path, pin_path)
+
+
+def _require_pin_readonly(mount_path: Path, sample_root: Path) -> None:
+    source = sample_root / "gates" / "rules.py"
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest() if source.is_file() else None
+    mounted = protect_readonly(mount_path)
+    sealed = seal_against_remount(sample_root if sample_root.exists() else mount_path)
+    assert os.environ.get("GATES_RDONLY_NS") == "1"
+    assert os.readlink("/proc/self/ns/mnt") != os.environ["GATES_HOST_MNT_NS"]
+    assert mounted["st_rdonly"] is True
+    assert mounted["write_errno"] == errno.EROFS
+    assert bool(os.statvfs(mount_path).f_flag & os.ST_RDONLY) is True
+    assert bool(os.statvfs("/").f_flag & os.ST_RDONLY) is (os.environ.get("GATES_HOST_ST_RDONLY") == "1")
+    assert sealed["parent_remount_rc"] != 0
+    assert sealed["child_remount_rc"] != 0
+    assert sealed["parent_has_sys_admin"] is False
+    assert sealed["child_has_sys_admin"] is False
+    assert sealed["child_mnt_ns"] == sealed["parent_mnt_ns"]
+    assert sealed["child_mnt_ns"] != sealed["host_mnt_ns"]
+    assert sealed["st_rdonly_after"] is True
+    if source_hash is not None:
+        assert hashlib.sha256(source.read_bytes()).hexdigest() == source_hash
+    print(
+        "GATES_PIN_ST_RDONLY "
+        + json.dumps({"mounted": mounted, "sealed": sealed}, sort_keys=True),
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def _assert_twin_bed_when_ops_absent() -> None:
@@ -162,6 +197,7 @@ def _assert_twin_bed_when_ops_absent() -> None:
         default_text = (paths["pin_loadpath"] / "manifests" / "default_manifest.UNSET_FAIL_CLOSED.json").read_text(encoding="utf-8")
         assert "UNSET_FAIL_CLOSED" in default_text
         assert load_default_manifest()["gates_pin_sha"] == "UNSET_FAIL_CLOSED"
+        _require_pin_readonly(paths["pin_loadpath"], extract)
         loaded = load_pin(
             manifest,
             pin_loadpath=extract,

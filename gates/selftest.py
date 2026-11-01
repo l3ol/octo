@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 
@@ -20,6 +21,9 @@ class _Count:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from gates.readonly_ns import NS_ENV, ensure_harness_namespace
+
+    ensure_harness_namespace()
     import pytest
 
     counter = _Count()
@@ -31,7 +35,8 @@ def main(argv: list[str] | None = None) -> int:
         "STACK_OK_BUILDER_EVIDENCE "
         f"command='PYTHONPATH=. python -m gates.selftest' "
         f"exit={code} passed={counter.passed} failed={counter.failed} "
-        "independent_acceptance=false runtime_pass=false"
+        "independent_acceptance=false runtime_pass=false "
+        f"harness_ns={os.environ.get(NS_ENV, '0')}"
     )
     return int(code)
 

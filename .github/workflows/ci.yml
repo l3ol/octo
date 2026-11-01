@@ -41,4 +41,6 @@ jobs:
         run: PYTHONPATH=. python -m gates.workflow_proof
 
       - name: Run tests
-        run: PYTHONPATH=. pytest tests/ -q
+        # gates.selftest re-execs this process into one user and mount namespace
+        # before pytest. The workflow does not install packages with a privileged helper.
+        run: PYTHONPATH=. python -m gates.selftest
