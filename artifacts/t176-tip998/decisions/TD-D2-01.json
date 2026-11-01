@@ -1,0 +1,25 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "untracked gates file stays out of the pin tree, or FAIL PIN_SNAPSHOT_TREE_MISMATCH",
+  "g4_refrozen": false,
+  "id": "TD-D2-01",
+  "notes": "untracked gates file stayed out of the pin tree",
+  "observed": {
+    "blob_paths": [
+      "gates/mod.py"
+    ],
+    "method": "git-archive",
+    "pin_paths": [
+      "gates/mod.py"
+    ],
+    "pin_tree_sha": "2db9025c31364ce6c6fbfcfccb3fe71f4cab7c61",
+    "source_tree": "2db9025c31364ce6c6fbfcfccb3fe71f4cab7c61",
+    "status": "OK",
+    "untracked_in_pin": false
+  },
+  "reason_code": "EXCLUDED",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

@@ -1,0 +1,21 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "uncommitted tracked gates edit \u2192 FAIL PIN_SNAPSHOT_TREE_MISMATCH",
+  "g4_refrozen": false,
+  "id": "TD-D2-02",
+  "notes": "uncommitted tracked gates edit rejected; pin ref not written",
+  "observed": {
+    "pin_ref_created": false,
+    "result": {
+      "method": null,
+      "reason_code": "PIN_SNAPSHOT_TREE_MISMATCH",
+      "runtime_gates_pin_sha": null,
+      "status": "FAIL"
+    }
+  },
+  "reason_code": "PIN_SNAPSHOT_TREE_MISMATCH",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

@@ -1,0 +1,68 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "short sha / empty / branch name \u2192 FAIL TAMPER_PIN_UNSET_OR_INVALID",
+  "g4_refrozen": false,
+  "id": "TD-D1-04",
+  "notes": "short sha, empty string, and branch/HEAD names fail closed before any fetch; uppercase noted separately",
+  "observed": {
+    "samples": [
+      {
+        "held": true,
+        "input": "",
+        "result": {
+          "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+          "status": "FAIL"
+        }
+      },
+      {
+        "held": true,
+        "input": "abc",
+        "result": {
+          "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+          "status": "FAIL"
+        }
+      },
+      {
+        "held": true,
+        "input": "998784b3",
+        "result": {
+          "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+          "status": "FAIL"
+        }
+      },
+      {
+        "held": true,
+        "input": "main",
+        "result": {
+          "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+          "status": "FAIL"
+        }
+      },
+      {
+        "held": true,
+        "input": "HEAD",
+        "result": {
+          "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+          "status": "FAIL"
+        }
+      },
+      {
+        "held": true,
+        "input": "24d558e",
+        "result": {
+          "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+          "status": "FAIL"
+        }
+      }
+    ],
+    "uppercase_full_sha_observation": {
+      "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+      "status": "FAIL"
+    }
+  },
+  "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

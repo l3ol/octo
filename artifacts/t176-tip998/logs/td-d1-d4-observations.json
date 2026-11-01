@@ -1,0 +1,509 @@
+{
+  "capability_gap": [
+    "OPS_BED_BOX_LOCAL_ONLY",
+    "PIN_NOT_PREMATERIALIZED"
+  ],
+  "cases": [
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "FAIL PIN_OBJECT_MISSING; return value is not HEAD",
+      "g4_refrozen": false,
+      "id": "TD-D1-01",
+      "notes": "missing 40hex on a disposable repo whose origin has no objects",
+      "observed": {
+        "head_after": "be4d646a6d0474d8a8f0bd5db186075ca2f88082",
+        "head_before": "be4d646a6d0474d8a8f0bd5db186075ca2f88082",
+        "result": {
+          "reason_code": "PIN_OBJECT_MISSING",
+          "status": "FAIL"
+        },
+        "returned_sha_equals_head": false
+      },
+      "reason_code": "PIN_OBJECT_MISSING",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "shallow clone still missing after deepen/fetch \u2192 FAIL PIN_OBJECT_MISSING; do not return HEAD/tag/branch",
+      "g4_refrozen": false,
+      "id": "TD-D1-02",
+      "notes": "deepen/fetch against an empty origin left the object missing and did not return HEAD",
+      "observed": {
+        "head_after": "0df6263096361658cc4dbd1903c831d9f2dfc26b",
+        "head_before": "0df6263096361658cc4dbd1903c831d9f2dfc26b",
+        "parent": "2d946499a4f8162bf7f43b02bee5d46e2a812ab8",
+        "parent_present_after": false,
+        "refs_before": "0df6263096361658cc4dbd1903c831d9f2dfc26b refs/heads/master\n0df6263096361658cc4dbd1903c831d9f2dfc26b refs/remotes/origin/HEAD\n0df6263096361658cc4dbd1903c831d9f2dfc26b refs/remotes/origin/master",
+        "result": {
+          "reason_code": "PIN_OBJECT_MISSING",
+          "status": "FAIL"
+        },
+        "shallow": "true",
+        "tip": "0df6263096361658cc4dbd1903c831d9f2dfc26b"
+      },
+      "reason_code": "PIN_OBJECT_MISSING",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "shallow clone that contains the full tip \u2192 OK and sha equals the input",
+      "g4_refrozen": false,
+      "id": "TD-D1-03",
+      "notes": "shallow clone whose tip object is present returns that same sha",
+      "observed": {
+        "parent_absent": true,
+        "result": {
+          "sha": "2c64da66af8333085ebb7a3f36da862d92c1da4c",
+          "status": "OK"
+        },
+        "returned_sha_equals_input": true,
+        "shallow": "true",
+        "tip": "2c64da66af8333085ebb7a3f36da862d92c1da4c"
+      },
+      "reason_code": null,
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "short sha / empty / branch name \u2192 FAIL TAMPER_PIN_UNSET_OR_INVALID",
+      "g4_refrozen": false,
+      "id": "TD-D1-04",
+      "notes": "short sha, empty string, and branch/HEAD names fail closed before any fetch; uppercase noted separately",
+      "observed": {
+        "samples": [
+          {
+            "held": true,
+            "input": "",
+            "result": {
+              "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+              "status": "FAIL"
+            }
+          },
+          {
+            "held": true,
+            "input": "abc",
+            "result": {
+              "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+              "status": "FAIL"
+            }
+          },
+          {
+            "held": true,
+            "input": "998784b3",
+            "result": {
+              "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+              "status": "FAIL"
+            }
+          },
+          {
+            "held": true,
+            "input": "main",
+            "result": {
+              "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+              "status": "FAIL"
+            }
+          },
+          {
+            "held": true,
+            "input": "HEAD",
+            "result": {
+              "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+              "status": "FAIL"
+            }
+          },
+          {
+            "held": true,
+            "input": "24d558e",
+            "result": {
+              "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+              "status": "FAIL"
+            }
+          }
+        ],
+        "uppercase_full_sha_observation": {
+          "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+          "status": "FAIL"
+        }
+      },
+      "reason_code": "TAMPER_PIN_UNSET_OR_INVALID",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "untracked gates file stays out of the pin tree, or FAIL PIN_SNAPSHOT_TREE_MISMATCH",
+      "g4_refrozen": false,
+      "id": "TD-D2-01",
+      "notes": "untracked gates file stayed out of the pin tree",
+      "observed": {
+        "blob_paths": [
+          "gates/mod.py"
+        ],
+        "method": "git-archive",
+        "pin_paths": [
+          "gates/mod.py"
+        ],
+        "pin_tree_sha": "2db9025c31364ce6c6fbfcfccb3fe71f4cab7c61",
+        "source_tree": "2db9025c31364ce6c6fbfcfccb3fe71f4cab7c61",
+        "status": "OK",
+        "untracked_in_pin": false
+      },
+      "reason_code": "EXCLUDED",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "uncommitted tracked gates edit \u2192 FAIL PIN_SNAPSHOT_TREE_MISMATCH",
+      "g4_refrozen": false,
+      "id": "TD-D2-02",
+      "notes": "uncommitted tracked gates edit rejected; pin ref not written",
+      "observed": {
+        "pin_ref_created": false,
+        "result": {
+          "method": null,
+          "reason_code": "PIN_SNAPSHOT_TREE_MISMATCH",
+          "runtime_gates_pin_sha": null,
+          "status": "FAIL"
+        }
+      },
+      "reason_code": "PIN_SNAPSHOT_TREE_MISMATCH",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "git archive of build_candidate_sha matches gate_tree_sha and every blob oid+sha256; sets equal",
+      "g4_refrozen": false,
+      "id": "TD-D2-03",
+      "notes": "archive file set and ls-tree oid/sha256 recomputed outside the snapshot helper",
+      "observed": {
+        "blob_count": 2,
+        "expected_gate_tree": "475e09f9c830701826a769e64bae8d2933117260",
+        "gate_tree_sha": "475e09f9c830701826a769e64bae8d2933117260",
+        "method": "git-archive",
+        "oid_and_sha256_equal": true,
+        "roles": {
+          "build": "da2df2620f5fe81acaef7400ec3d08d37ef2eae3",
+          "land": "37985b8e45f4f3b25e59916bbd91d0029a184b57",
+          "pin": "d35a27076e5a99ad456255b057893b80586ea703",
+          "test_base": "3d2ded76da60e05f4babd8407355fe6d8d245f63"
+        },
+        "sets_equal": true,
+        "source_commit": "da2df2620f5fe81acaef7400ec3d08d37ef2eae3"
+      },
+      "reason_code": "MATCH",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "method=workspace-copytree \u2192 spec check FAIL",
+      "g4_refrozen": false,
+      "id": "TD-D2-04",
+      "notes": "workspace-copytree is a spec-check failure; octo/backup.py is outside this snapshot path and was not used",
+      "observed": {
+        "git_archive_method": {
+          "method": "git-archive",
+          "status": "OK"
+        },
+        "reject_result": {
+          "method": "workspace-copytree",
+          "reason_code": "PIN_SNAPSHOT_TREE_MISMATCH",
+          "status": "FAIL"
+        },
+        "snapshot_source_contains_copytree_call": false
+      },
+      "reason_code": "PIN_SNAPSHOT_TREE_MISMATCH",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "config_digest equal to the cff hash \u2192 FAIL CONFIG_DIGEST_INCOMPLETE",
+      "g4_refrozen": false,
+      "id": "TD-D3-01",
+      "notes": "presenting the cff file hash as config_digest fails; recomputed manifest digest differs",
+      "observed": {
+        "cff_equals_config_digest": false,
+        "config_digest": "2feb73d01b2a717b0219253967770ad2da094dd137b918c4a3a35e1dd27ff59a",
+        "independent_digest": "2feb73d01b2a717b0219253967770ad2da094dd137b918c4a3a35e1dd27ff59a",
+        "judge": {
+          "reason_code": "CONFIG_DIGEST_INCOMPLETE",
+          "status": "FAIL"
+        },
+        "manifest": {
+          "parameters_canonical_sha256": "cff01a57e38b16af6bc5545789949575b1cbcc3078cdf5bf3158cee4b56fd884",
+          "policy_config_digest": "68eb1f1844aa24947f9e23a9f21fb1365c50ca85f9012f981c98aed8fbbdfcda",
+          "protection_settings_digest": "ab4096de1a460ec7696df488e8d92cf5623b116c190fdf84153bf9037fc0d99e",
+          "rule_version": "6.0.0"
+        },
+        "manifest_canonical": "{\"parameters_canonical_sha256\":\"cff01a57e38b16af6bc5545789949575b1cbcc3078cdf5bf3158cee4b56fd884\",\"policy_config_digest\":\"68eb1f1844aa24947f9e23a9f21fb1365c50ca85f9012f981c98aed8fbbdfcda\",\"protection_settings_digest\":\"ab4096de1a460ec7696df488e8d92cf5623b116c190fdf84153bf9037fc0d99e\",\"rule_version\":\"6.0.0\"}\n"
+      },
+      "reason_code": "CONFIG_DIGEST_INCOMPLETE",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "changing protection_settings_digest changes config_digest",
+      "g4_refrozen": false,
+      "id": "TD-D3-02",
+      "notes": "one manifest field change changes config_digest; digest recomputed with hashlib",
+      "observed": {
+        "changed": "adda82572490db9419951d3a283d9db8cb119e88c942e676ff625fa5a65da359",
+        "independent_changed": "adda82572490db9419951d3a283d9db8cb119e88c942e676ff625fa5a65da359",
+        "mutated_protection_settings_digest": "abababababababababababababababababababababababababababababababab",
+        "original": "2feb73d01b2a717b0219253967770ad2da094dd137b918c4a3a35e1dd27ff59a",
+        "protection_settings_digest": "ab4096de1a460ec7696df488e8d92cf5623b116c190fdf84153bf9037fc0d99e"
+      },
+      "reason_code": "DIGEST_CHANGED",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "cff bytes remain cff01a57\u2026 and 4332 bytes",
+      "g4_refrozen": false,
+      "id": "TD-D3-03",
+      "notes": "canonical parameter file bytes were not rewritten on this tip",
+      "observed": {
+        "bytes": 4332,
+        "head_blob_sha256": "cff01a57e38b16af6bc5545789949575b1cbcc3078cdf5bf3158cee4b56fd884",
+        "sha256": "cff01a57e38b16af6bc5545789949575b1cbcc3078cdf5bf3158cee4b56fd884",
+        "worktree_equals_head_blob": true
+      },
+      "reason_code": "CFF_UNCHANGED",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "manifest without rule_version \u2192 FAIL CONFIG_DIGEST_INCOMPLETE",
+      "g4_refrozen": false,
+      "id": "TD-D3-04",
+      "notes": "manifest without rule_version is CONFIG_DIGEST_INCOMPLETE",
+      "observed": {
+        "judge": {
+          "reason_code": "CONFIG_DIGEST_INCOMPLETE",
+          "status": "FAIL"
+        }
+      },
+      "reason_code": "CONFIG_DIGEST_INCOMPLETE",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "merge-ref workspace is not proven by metadata head_sha; WORKFLOW_HEAD_UNPROVEN",
+      "g4_refrozen": false,
+      "id": "TD-D4-01",
+      "notes": "merge-ref workspace was not treated as the tip on metadata head_sha alone",
+      "observed": {
+        "cli_metadata_claims_tip": {
+          "env": {
+            "CHECKOUT_REF": "7637044845198cf0a9dac6261ad1cf55ea41b13f",
+            "EVENT_NAME": "workflow_dispatch",
+            "TRIGGER_SHA": "7637044845198cf0a9dac6261ad1cf55ea41b13f"
+          },
+          "exit": 1,
+          "stderr": "",
+          "stdout": "checkout_ref=7637044845198cf0a9dac6261ad1cf55ea41b13f\nexpected_sha=7637044845198cf0a9dac6261ad1cf55ea41b13f\nactual_head=705478564a54596775f3d44b148732cf6887ff54\nexpected_tree=a11b9b50170544df3d0f1bf747c5a5921bfb349c\nactual_tree=7cfceeda638d6f3931d9ae8fe25934d02ef5bc8f\nbase_sha=bba25b6b812593a6ed7cbc9e22274aefc3bc88c2\nWORKFLOW_HEAD_UNPROVEN\n"
+        },
+        "cli_pull_request_merge_ref": {
+          "env": {
+            "CHECKOUT_REF": "705478564a54596775f3d44b148732cf6887ff54",
+            "EVENT_NAME": "pull_request",
+            "PR_BASE_SHA": "a8f5cc9aebf1c6db025fdc2d2a9fcd14bd440c6f",
+            "PR_HEAD_SHA": "7637044845198cf0a9dac6261ad1cf55ea41b13f",
+            "TRIGGER_SHA": "705478564a54596775f3d44b148732cf6887ff54"
+          },
+          "exit": 1,
+          "stderr": "",
+          "stdout": "WORKFLOW_HEAD_UNPROVEN\nworkspace or checkout ref is the pull_request trigger object\n"
+        },
+        "merge": "705478564a54596775f3d44b148732cf6887ff54",
+        "prove_checkout": {
+          "actual_head": "705478564a54596775f3d44b148732cf6887ff54",
+          "actual_tree": "7cfceeda638d6f3931d9ae8fe25934d02ef5bc8f",
+          "base_sha": "a8f5cc9aebf1c6db025fdc2d2a9fcd14bd440c6f",
+          "checkout_ref": "refs/pull/12/merge",
+          "expected_sha": "7637044845198cf0a9dac6261ad1cf55ea41b13f",
+          "expected_tree": "a11b9b50170544df3d0f1bf747c5a5921bfb349c",
+          "proven": false,
+          "reason_code": "WORKFLOW_HEAD_UNPROVEN",
+          "status": "FAIL"
+        },
+        "tip": "7637044845198cf0a9dac6261ad1cf55ea41b13f",
+        "trees_differ": true
+      },
+      "reason_code": "WORKFLOW_HEAD_UNPROVEN",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "explicit SHA checkout asserts HEAD and tree; base_sha recorded",
+      "g4_refrozen": false,
+      "id": "TD-D4-02",
+      "notes": "explicit SHA checkout of tip998; HEAD, tree, and base recorded",
+      "observed": {
+        "base_sha": "24d558e193be6225aa2bb71bde3a75a2f7851b78",
+        "cli": {
+          "env": {
+            "CHECKOUT_REF": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+            "EVENT_NAME": "workflow_dispatch",
+            "TRIGGER_SHA": "998784b3e6cc0e6e6597cde76ce018331d924a72"
+          },
+          "exit": 0,
+          "stderr": "",
+          "stdout": "checkout_ref=998784b3e6cc0e6e6597cde76ce018331d924a72\nexpected_sha=998784b3e6cc0e6e6597cde76ce018331d924a72\nactual_head=998784b3e6cc0e6e6597cde76ce018331d924a72\nexpected_tree=62fd51cb0b31eeed130007201cfd36bbca081c44\nactual_tree=62fd51cb0b31eeed130007201cfd36bbca081c44\nbase_sha=24d558e193be6225aa2bb71bde3a75a2f7851b78\nWORKFLOW_HEAD_PROVEN\n"
+        },
+        "head": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+        "library": {
+          "actual_head": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+          "actual_tree": "62fd51cb0b31eeed130007201cfd36bbca081c44",
+          "base_sha": "24d558e193be6225aa2bb71bde3a75a2f7851b78",
+          "checkout_ref": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+          "expected_sha": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+          "expected_tree": "62fd51cb0b31eeed130007201cfd36bbca081c44",
+          "proven": true,
+          "status": "OK"
+        },
+        "tree": "62fd51cb0b31eeed130007201cfd36bbca081c44"
+      },
+      "reason_code": "MATCH",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "CI 41325626443 is not G4 re-freeze evidence",
+      "g4_refrozen": false,
+      "id": "TD-D4-03",
+      "notes": "41325626443 is not re-freeze evidence; 41329214806 success is context only",
+      "observed": {
+        "context_ci": "41329214806",
+        "context_ci_is_refreeze_evidence": false,
+        "historical_ci": "41325626443",
+        "historical_is_refreeze_evidence": false,
+        "module_G4_REFROZEN": false,
+        "module_RUNTIME_PASS": false,
+        "tester_adopts_context_ci_as_acceptance": false,
+        "tester_adopts_historical_ci": false
+      },
+      "reason_code": "NOT_REFREEZE_EVIDENCE",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "HEAD^{tree} mismatch \u2192 FAIL WORKFLOW_HEAD_UNPROVEN",
+      "g4_refrozen": false,
+      "id": "TD-D4-04",
+      "notes": "HEAD matches tip998 and HEAD^{tree} does not match the expected tree",
+      "observed": {
+        "actual_tree": "62fd51cb0b31eeed130007201cfd36bbca081c44",
+        "expected_tree": "443f3a3bd72f92172f4f5e243fdaebfa429d90ac",
+        "result": {
+          "actual_head": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+          "actual_tree": "62fd51cb0b31eeed130007201cfd36bbca081c44",
+          "base_sha": "24d558e193be6225aa2bb71bde3a75a2f7851b78",
+          "checkout_ref": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+          "expected_sha": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+          "expected_tree": "443f3a3bd72f92172f4f5e243fdaebfa429d90ac",
+          "proven": false,
+          "reason_code": "WORKFLOW_HEAD_UNPROVEN",
+          "status": "FAIL"
+        }
+      },
+      "reason_code": "WORKFLOW_HEAD_UNPROVEN",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    },
+    {
+      "acceptance": false,
+      "case_result": "PASS",
+      "error": null,
+      "expectation": "workflow text that adds apt/sudo/sysctl or git merge/rebase fails the spec check",
+      "g4_refrozen": false,
+      "id": "TD-D4-05",
+      "notes": "candidate ci.yml has no apt/sudo/sysctl/git merge/git rebase; injected additions fail the spec check",
+      "observed": {
+        "candidate_has_explicit_ref_and_proof": true,
+        "candidate_product_hits": [],
+        "candidate_tester_hits": [],
+        "injected_product_hits": [
+          "\\bapt(-get)?\\b",
+          "\\bsudo\\b",
+          "\\bsysctl\\b",
+          "\\bgit\\s+merge\\b",
+          "\\bgit\\s+rebase\\b"
+        ],
+        "injected_spec_check": "FAIL",
+        "injected_tester_hits": [
+          "apt",
+          "sudo",
+          "sysctl",
+          "git_merge",
+          "git_rebase"
+        ]
+      },
+      "reason_code": "SPEC_CHECK_FAIL_ON_INJECTED",
+      "runtime_pass": false,
+      "stack_ok_is_not_pass": true
+    }
+  ],
+  "counts": {
+    "FAIL": 0,
+    "OPEN": 0,
+    "PASS": 17
+  },
+  "g4_refrozen": false,
+  "merge": false,
+  "ops_root": "/home/box/ops-isolation/gates/source-qa-isolation-bed-2026-11-01",
+  "ops_root_visible": false,
+  "parent": "24d558e193be6225aa2bb71bde3a75a2f7851b78",
+  "real_iso_authority": "BOX",
+  "real_iso_cloud": "NOT_EXECUTED_FORMAL_SEAL",
+  "runtime_pass": false,
+  "tip": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+  "tip_unchanged": true,
+  "tree": "62fd51cb0b31eeed130007201cfd36bbca081c44",
+  "twin_supplementary": false
+}

@@ -1,0 +1,24 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "method=workspace-copytree \u2192 spec check FAIL",
+  "g4_refrozen": false,
+  "id": "TD-D2-04",
+  "notes": "workspace-copytree is a spec-check failure; octo/backup.py is outside this snapshot path and was not used",
+  "observed": {
+    "git_archive_method": {
+      "method": "git-archive",
+      "status": "OK"
+    },
+    "reject_result": {
+      "method": "workspace-copytree",
+      "reason_code": "PIN_SNAPSHOT_TREE_MISMATCH",
+      "status": "FAIL"
+    },
+    "snapshot_source_contains_copytree_call": false
+  },
+  "reason_code": "PIN_SNAPSHOT_TREE_MISMATCH",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

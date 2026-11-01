@@ -1,0 +1,37 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "explicit SHA checkout asserts HEAD and tree; base_sha recorded",
+  "g4_refrozen": false,
+  "id": "TD-D4-02",
+  "notes": "explicit SHA checkout of tip998; HEAD, tree, and base recorded",
+  "observed": {
+    "base_sha": "24d558e193be6225aa2bb71bde3a75a2f7851b78",
+    "cli": {
+      "env": {
+        "CHECKOUT_REF": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+        "EVENT_NAME": "workflow_dispatch",
+        "TRIGGER_SHA": "998784b3e6cc0e6e6597cde76ce018331d924a72"
+      },
+      "exit": 0,
+      "stderr": "",
+      "stdout": "checkout_ref=998784b3e6cc0e6e6597cde76ce018331d924a72\nexpected_sha=998784b3e6cc0e6e6597cde76ce018331d924a72\nactual_head=998784b3e6cc0e6e6597cde76ce018331d924a72\nexpected_tree=62fd51cb0b31eeed130007201cfd36bbca081c44\nactual_tree=62fd51cb0b31eeed130007201cfd36bbca081c44\nbase_sha=24d558e193be6225aa2bb71bde3a75a2f7851b78\nWORKFLOW_HEAD_PROVEN\n"
+    },
+    "head": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+    "library": {
+      "actual_head": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+      "actual_tree": "62fd51cb0b31eeed130007201cfd36bbca081c44",
+      "base_sha": "24d558e193be6225aa2bb71bde3a75a2f7851b78",
+      "checkout_ref": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+      "expected_sha": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+      "expected_tree": "62fd51cb0b31eeed130007201cfd36bbca081c44",
+      "proven": true,
+      "status": "OK"
+    },
+    "tree": "62fd51cb0b31eeed130007201cfd36bbca081c44"
+  },
+  "reason_code": "MATCH",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

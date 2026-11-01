@@ -1,0 +1,28 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "config_digest equal to the cff hash \u2192 FAIL CONFIG_DIGEST_INCOMPLETE",
+  "g4_refrozen": false,
+  "id": "TD-D3-01",
+  "notes": "presenting the cff file hash as config_digest fails; recomputed manifest digest differs",
+  "observed": {
+    "cff_equals_config_digest": false,
+    "config_digest": "2feb73d01b2a717b0219253967770ad2da094dd137b918c4a3a35e1dd27ff59a",
+    "independent_digest": "2feb73d01b2a717b0219253967770ad2da094dd137b918c4a3a35e1dd27ff59a",
+    "judge": {
+      "reason_code": "CONFIG_DIGEST_INCOMPLETE",
+      "status": "FAIL"
+    },
+    "manifest": {
+      "parameters_canonical_sha256": "cff01a57e38b16af6bc5545789949575b1cbcc3078cdf5bf3158cee4b56fd884",
+      "policy_config_digest": "68eb1f1844aa24947f9e23a9f21fb1365c50ca85f9012f981c98aed8fbbdfcda",
+      "protection_settings_digest": "ab4096de1a460ec7696df488e8d92cf5623b116c190fdf84153bf9037fc0d99e",
+      "rule_version": "6.0.0"
+    },
+    "manifest_canonical": "{\"parameters_canonical_sha256\":\"cff01a57e38b16af6bc5545789949575b1cbcc3078cdf5bf3158cee4b56fd884\",\"policy_config_digest\":\"68eb1f1844aa24947f9e23a9f21fb1365c50ca85f9012f981c98aed8fbbdfcda\",\"protection_settings_digest\":\"ab4096de1a460ec7696df488e8d92cf5623b116c190fdf84153bf9037fc0d99e\",\"rule_version\":\"6.0.0\"}\n"
+  },
+  "reason_code": "CONFIG_DIGEST_INCOMPLETE",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

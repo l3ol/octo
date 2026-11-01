@@ -1,0 +1,21 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "FAIL PIN_OBJECT_MISSING; return value is not HEAD",
+  "g4_refrozen": false,
+  "id": "TD-D1-01",
+  "notes": "missing 40hex on a disposable repo whose origin has no objects",
+  "observed": {
+    "head_after": "be4d646a6d0474d8a8f0bd5db186075ca2f88082",
+    "head_before": "be4d646a6d0474d8a8f0bd5db186075ca2f88082",
+    "result": {
+      "reason_code": "PIN_OBJECT_MISSING",
+      "status": "FAIL"
+    },
+    "returned_sha_equals_head": false
+  },
+  "reason_code": "PIN_OBJECT_MISSING",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

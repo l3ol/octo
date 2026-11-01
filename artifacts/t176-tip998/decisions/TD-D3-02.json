@@ -1,0 +1,19 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "changing protection_settings_digest changes config_digest",
+  "g4_refrozen": false,
+  "id": "TD-D3-02",
+  "notes": "one manifest field change changes config_digest; digest recomputed with hashlib",
+  "observed": {
+    "changed": "adda82572490db9419951d3a283d9db8cb119e88c942e676ff625fa5a65da359",
+    "independent_changed": "adda82572490db9419951d3a283d9db8cb119e88c942e676ff625fa5a65da359",
+    "mutated_protection_settings_digest": "abababababababababababababababababababababababababababababababab",
+    "original": "2feb73d01b2a717b0219253967770ad2da094dd137b918c4a3a35e1dd27ff59a",
+    "protection_settings_digest": "ab4096de1a460ec7696df488e8d92cf5623b116c190fdf84153bf9037fc0d99e"
+  },
+  "reason_code": "DIGEST_CHANGED",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}
