@@ -1,0 +1,57 @@
+未见 Muse Chief 本轮判断。以下为 GPT Chief 独立定参，绑定三题 `cee3395d0784bdd4be15269c0495bbfcccf50e7698eb8302ef17c88e6a7be1f1`、LIVE `d1c5adb846f53b5fc2fd30306f1d9d12e0083021e9e3550b6598aa22b5514940`、v6.0 `c1e357b40dba46e2b9ce825cd428c877ba20f4ecf7de2044e0abea28847ace8d`、§7.2 canonical `952299604d7c9221a7be8c6906e786a0c7d040b410160a80a979f017eb2f357a`。
+
+**Q1 · P-3：选择 A**
+
+- 限额：`10 MiB = 10 × 1024 × 1024 = 10,485,760 bytes`。
+- 计量对象：固定 `candidate_tree` 的全部 tracked blob，不按 diff 计算。
+- 判定：`total_bytes > 10,485,760` 时 `REJECT`，原因码 `POLICY_SIZE_EXCEEDED`；恰好等于限额允许继续其他门。
+- 证据：记录 candidate commit/tree SHA、逐路径 blob object ID 与 byte size、规范化路径、合计值、阈值、比较结果及规则版本；相同 tree 必须可重算得到相同结果。
+- 处置：拒绝自动着陆并按 §7.2 既有机制上报，不新设 Founder 日常选择点。
+
+理由：政策红线应 fail-closed；10 MiB 足以暴露异常包，又不把“升级人工”误作路径 B 的继续入口。该值仅为 P-3 工程阈值，不是业务 kill line。
+
+**Q2 · P-4：选择 B**
+
+采用区分大小写、路径分隔符固定为 `/` 的 Git-wildmatch 等价语法；`**/` 可匹配零个或多个目录，因此同时覆盖仓库根与嵌套路径。匹配前去除单个前导 `./`，拒绝绝对路径、空段、`.`/`..` 穿越及反斜杠歧义，再对仓库相对路径匹配。
+
+完整 patterns：
+
+```text
+.env
+.env.*
+**/.env
+**/.env.*
+**/secrets/**
+**/*credential*
+**/*secret*
+**/id_rsa*
+**/*.pem
+**/brain/**
+**/Brain/**
+**/backup-raw/**
+**/full-backup/**
+**/*.key
+**/wallet/**
+**/.ssh/**
+**/private/**
+**/mega/**
+**/*backup*.tar*
+**/*backup*.zip
+**/agent-data/**
+```
+
+任一命中即 `REJECT`。P-4 例外仅在 basename 含区分大小写的字面串 `manifest`，且最终扩展名严格为 `.json` 或 `.sha256` 时成立；例外只免除该文件的 P-4 路径拒绝。它不构成凭证许可，也不绕过 P-1 内容扫描、P-2 Brain/备份原样检测、范围门、验证门或其他政策规则；内容命中仍拒绝。每次判定记录规范化路径、命中 pattern、例外判定及规则 digest。
+
+理由：宽清单直接覆盖冻结红线的常见落点，避免仅靠内容识别遗漏，同时保留原题限定的机械清单例外。
+
+**Q3 · G-1：选择 A，并作以下机械细化**
+
+- 受保护代码范围：`gates/**`，其中包含 `gates/policy/**`、`gates/task_registry/**`、加载器及 compare-and-merge 实现。
+- 建造隔离分支：`test/gates-v6-isolated`。
+- 权威 pin：完整、不可缩写的 40 位 commit SHA，字段名 `gates_pin_sha`。权威值来自完成实现并准备自测的门建造候选 commit，不来自 tag、当前分支 HEAD 或待着陆 candidate。
+- 固化位置：写入候选 checkout 之外的受控只读运行清单；清单绑定 `gates_pin_sha`、gate tree SHA、规则版本、artifact digest、配置 digest、生成时间及 Receipt。运行时只从该 pin 建立只读 checkout/load path，待着陆 candidate 仅作为输入数据。
+- 缺失、非 40 位小写十六进制、对象不存在、对象非 commit、tree/artifact/config digest 不匹配时，一律 fail-closed；不得回退到 tag、branch HEAD、工作区文件或 candidate 自报 pin。
+- `gates_pin_sha` 变化必须产生新清单、规则版本/digest 和留痕 Receipt，并对新门版本重跑受影响自测及独立验收；普通着陆 candidate 无权改 pin。
+- 候选 path filter 对受门控的着陆 candidate 禁止修改 `gates/**`。compare-and-merge 与三门从同一 `gates_pin_sha` 加载，并在最终时隙比较已验证��� candidate/base，候选不得替换该逻辑。
+
+实际 SHA 的机械时点：Spec 使用 `UNSET_FAIL_CLOSED`，不得虚构 SHA；Dev 可在已授权的门建造隔离分支正常编写 `gates/**`。形成可自测 commit 后提取真实 commit SHA、生成外置只读 pin 清单并执行 G3 自测；修复产生新 commit 时旧 pin 与证据失效并重新物化。G4 冻结最终候选后封存最终 pin、digests 与 handoff snapshot。门建造分支在冻结前可修改门代码；冻结后的门运行版本及普通待验候选不可修改或替换运行 pin。
