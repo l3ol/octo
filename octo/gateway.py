@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
-from octo.governor import FULL_ACTIONS
+from octo.governor import FULL_ACTIONS, Denied
 from octo.grant import S1_GRANT_ACTIONS, AuthorizationRequest, GrantDenied, GrantStore
 from octo.journal import Blocked, Journal
 from octo.nodes import emit_envelope
@@ -22,8 +22,12 @@ class Gateway:
     def __init__(self, journal: Journal, grants: GrantStore, *, dispatch: Callable | None = None):
         self.journal = journal
         self.grants = grants
-        self.dispatch_impl = dispatch
+        self.dispatch_impl = dispatch if dispatch is not None else self._read_granted_fixture
         self.dispatch_count = 0
+
+    def _read_granted_fixture(self, request: AuthorizationRequest) -> dict:
+        """Default N10 handler: read the isolation fixture and record the effect."""
+        return self.journal.apply(request)
 
     def _authorize(self, request: AuthorizationRequest, *, now=None):
         if request.action in FULL_ACTIONS or request.action not in S1_GRANT_ACTIONS:
@@ -38,9 +42,7 @@ class Gateway:
 
     def _dispatch(self, request: AuthorizationRequest) -> dict:
         self.dispatch_count += 1
-        if self.dispatch_impl is not None:
-            return self.dispatch_impl(request)
-        return self.journal.apply(request)
+        return self.dispatch_impl(request)
 
     def execute(self, request: AuthorizationRequest, *, chat_text: str = "", now=None) -> dict:
         """Dispatch only after N9. ``chat_text`` is ignored and is not a grant."""
@@ -90,6 +92,10 @@ class Gateway:
             self.journal.record(request, "DISPATCHED", "dispatched")
             try:
                 effect = self._dispatch(request)
+            except Denied as exc:
+                return self.journal.record(request, "DENIED", "denied", reason=str(exc))
+            except FileNotFoundError as exc:
+                return self.journal.record(request, "BLOCKED", "blocked", reason=str(exc) or "ARTIFACT_MISSING")
             except Exception as exc:
                 return self.journal.record(
                     request,
@@ -97,11 +103,19 @@ class Gateway:
                     "unknown_commit",
                     reason=f"{type(exc).__name__}: {exc}",
                 )
+            if not isinstance(effect, dict) or not effect.get("object_id"):
+                return self.journal.record(request, "BLOCKED", "blocked", reason="READ_RESULT_MISSING")
+            if "op" in effect and "content_sha256" not in effect:
+                return self.journal.record(request, "BLOCKED", "blocked", reason="OP_IS_NOT_A_RESULT")
+            refs = []
+            if effect.get("evidence_ref"):
+                refs.append(effect["evidence_ref"])
+            refs.append(effect["object_id"])
             return self.journal.record(
                 request,
                 "SUCCEEDED",
                 "success",
-                evidence_refs=[effect["object_id"]],
+                evidence_refs=refs,
             )
 
 

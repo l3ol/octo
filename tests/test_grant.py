@@ -195,6 +195,29 @@ def test_ttl_and_bad_signature_deny(tmp_path):
     assert bad["receipt"]["reason"] == "GRANT_SIGNATURE_INVALID"
 
 
+def test_presented_digest_mismatch_writes_deny_receipt(tmp_path):
+    store = _store(tmp_path)
+    request = _request(tmp_path)
+    _issue(store, request)
+    inputs = _inputs(request)
+    inputs["request_digest"] = "ab" * 32
+    envelope = run_n9(inputs, at=AT, store=store, request=request, now=NOW)
+    assert envelope["output"]["verdict"] == "DENY"
+    assert envelope["output"]["grant_ref"] is None
+    assert set(envelope["output"]) == {"verdict", "reason", "grant_ref"}
+    reason = envelope["output"]["reason"]
+    assert request.actor in reason
+    assert request.resource in reason
+    assert request.intent_id in reason
+    assert request.digest in reason
+    assert inputs["request_digest"] in reason
+    assert request.git_candidate_sha in reason
+    files = list(store.receipts.glob("*.json"))
+    assert len(files) == 1
+    saved = json.loads(files[0].read_text(encoding="utf-8"))
+    assert saved["decision"] == "DENY"
+
+
 def test_sixty_four_hex_is_not_a_git_candidate(tmp_path):
     store = _store(tmp_path)
     request = _request(tmp_path)

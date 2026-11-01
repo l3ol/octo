@@ -9,7 +9,9 @@ Builder selftest support only. This module does not claim runtime acceptance.
 
 from __future__ import annotations
 
+import hashlib
 import json
+from pathlib import Path
 from typing import Any, Mapping
 
 from octo.envelope import build_envelope, validate_envelope
@@ -250,6 +252,59 @@ def run_n4(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | Non
     )
 
 
+def _readable_evidence(evidence_ref: str) -> Path | None:
+    """A FACT source has to be a file that opens. Labels and the string ``fresh`` do not."""
+    if not isinstance(evidence_ref, str):
+        return None
+    text = evidence_ref.strip()
+    if text in {"", "fresh", "UNADJUDICATED", "SOURCE_UNAVAILABLE"}:
+        return None
+    path = Path(text)
+    try:
+        if path.is_file() and path.stat().st_size >= 0:
+            path.read_bytes()
+            return path
+    except OSError:
+        return None
+    return None
+
+
+def _mark_source_unavailable(gaps: list, node_status: str) -> str:
+    if "SOURCE_UNAVAILABLE" not in gaps:
+        gaps.append("SOURCE_UNAVAILABLE")
+    return "SOURCE_UNAVAILABLE"
+
+
+def _start_recollect(path: Path, claim: str, gaps: list) -> str:
+    """Re-read a stale file and write a recollect marker beside it.
+
+    If the marker cannot be written, the source stays SOURCE_UNAVAILABLE.
+    A ``recollect:`` label alone is not a completed recollect.
+    """
+    try:
+        data = path.read_bytes()
+        marker = path.with_name(path.name + ".recollect.json")
+        if marker.parent.resolve() != path.parent.resolve():
+            return _mark_source_unavailable(gaps, "SOURCE_UNAVAILABLE")
+        if not marker.exists():
+            payload = json.dumps(
+                {
+                    "claim": claim,
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                    "recollect": True,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8") + b"\n"
+            marker.write_bytes(payload)
+        elif marker.read_bytes() == b"":
+            return _mark_source_unavailable(gaps, "SOURCE_UNAVAILABLE")
+    except OSError:
+        return _mark_source_unavailable(gaps, "SOURCE_UNAVAILABLE")
+    return "PARTIAL"
+
+
 def run_n5(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | None = None) -> dict:
     """N5 adjudicates claims as FACT, CLAIM, or STALE. Unlisted claims stay CLAIM."""
     _exact_keys(inputs, {"claims"})
@@ -263,6 +318,7 @@ def run_n5(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | Non
     }
     facts = []
     gaps = list((bound or {}).get("gaps", []))
+    node_status = "OK"
     for claim in claims:
         row = supplied.get(claim)
         if row is None:
@@ -274,6 +330,8 @@ def run_n5(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | Non
             })
             if claim not in gaps:
                 gaps.append(claim)
+            if node_status == "OK":
+                node_status = "PARTIAL"
             continue
         verdict = row.get("verdict")
         evidence_ref = row.get("evidence_ref") or ""
@@ -288,6 +346,18 @@ def run_n5(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | Non
             token = f"recollect:{claim}"
             if token not in gaps:
                 gaps.append(token)
+            opened = _readable_evidence(evidence_ref)
+            if opened is None:
+                node_status = _mark_source_unavailable(gaps, node_status)
+            else:
+                recollect_status = _start_recollect(opened, claim, gaps)
+                if recollect_status == "SOURCE_UNAVAILABLE" or node_status != "SOURCE_UNAVAILABLE":
+                    node_status = recollect_status
+        elif verdict == "FACT":
+            opened = _readable_evidence(evidence_ref)
+            if opened is None:
+                verdict = "CLAIM"
+                node_status = _mark_source_unavailable(gaps, node_status)
         facts.append({
             "claim": claim,
             "verdict": verdict,
@@ -298,7 +368,7 @@ def run_n5(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | Non
         node_id="N5",
         at=at,
         inputs={"claims": list(claims)},
-        status="OK",
+        status=node_status,
         output={"facts": facts, "gaps": gaps},
     )
 

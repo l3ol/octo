@@ -151,6 +151,52 @@ def test_n8_rejects_fake_n6_options():
         run_n8({"intent": intent, "options": [{"id": "x", "n6_output": {"fake": True}}]}, at=AT)
 
 
+def test_unclear_n1_stops_the_prefix():
+    pack = _pack()
+    pack["n1"] = {"text": "maybe later?", "source": {"kind": "note"}}
+    result = run_prefix({"action_type": "internal_readonly", "grant_ref": "grant-ref-s1-test"}, pack, at=AT)
+    assert [item["node_id"] for item in result["envelopes"]] == ["N1"]
+    assert result["status"] == "NEEDS_CLARIFICATION"
+
+
+def test_n3_not_worth_it_stops_before_n4():
+    pack = _pack()
+    pack["n3"]["新事实/偏差信号"] = {"observed": 9, "kill_line": {"label": "TEST_FIXTURE", "threshold": 5}}
+    result = run_prefix({"action_type": "internal_readonly", "grant_ref": "grant-ref-s1-test"}, pack, at=AT)
+    assert [item["node_id"] for item in result["envelopes"]] == ["N1", "N2", "N3"]
+    assert result["status"] != "OK"
+    assert result["envelopes"][-1]["output"]["still_worth_it"] is False
+
+
+def test_foreign_intent_does_not_finish_ok():
+    pack = _pack()
+    pack["n2"] = {"intent_id": "intent-OTHER-B"}
+    result = run_prefix({"action_type": "internal_readonly", "grant_ref": "grant-ref-s1-test"}, pack, at=AT)
+    assert result["status"] == "BLOCKED"
+    assert [item["node_id"] for item in result["envelopes"]] == ["N1"]
+
+
+def test_unlisted_claim_stops_before_later_nodes():
+    pack = _pack()
+    pack["n5"] = {"claims": ["no-evidence-claim"]}
+    pack.pop("n5_bound", None)
+    result = run_prefix({"action_type": "internal_readonly", "grant_ref": "grant-ref-s1-test"}, pack, at=AT)
+    assert result["envelopes"][-1]["node_id"] == "N5"
+    assert result["envelopes"][-1]["output"]["facts"][0]["verdict"] == "CLAIM"
+    assert "no-evidence-claim" in result["envelopes"][-1]["output"]["gaps"]
+    assert result["status"] == "PARTIAL"
+    assert "N8" not in {item["node_id"] for item in result["envelopes"]}
+
+
+def test_unmeasurable_acceptance_stops_the_prefix():
+    pack = _pack()
+    pack["n8"]["options"] = [{"id": "opt-3", "acceptance": "works well"}]
+    result = run_prefix({"action_type": "internal_readonly", "grant_ref": "grant-ref-s1-test"}, pack, at=AT)
+    assert result["envelopes"][-1]["node_id"] == "N8"
+    assert result["status"] == "NEEDS_CLARIFICATION"
+    assert "N9" not in {item["node_id"] for item in result["envelopes"]}
+
+
 def test_n3_named_kill_line_does_not_invent_continuation():
     intent = {"intent_id": "intent-1", "state": "ACTIVE"}
     with pytest.raises(ValueError, match="NO_TOUCH_COMPARISON"):

@@ -53,16 +53,39 @@ def precheck(store: GrantStore, request: AuthorizationRequest, *, now=None) -> d
     }
 
 
+def _grant_scope_draft(request: AuthorizationRequest, presented_digest: str) -> str:
+    """Draft the grant this request would need. The fixed slogan is not enough."""
+    return (
+        "grant_scope_draft "
+        f"action={request.action} "
+        f"actor={request.actor} "
+        f"resource={request.resource} "
+        f"intent={request.intent_id} "
+        f"digest={request.digest} "
+        f"presented_digest={presented_digest} "
+        f"candidate={request.git_candidate_sha} "
+        "amount_limit=0"
+    )
+
+
 def run_n9(inputs: Mapping[str, Any], *, at: str, store: GrantStore, request: AuthorizationRequest, now=None) -> dict:
     """Frozen N9 envelope. Inputs are exactly action, grant_id, request_digest."""
     if set(inputs) != N9_INPUT_KEYS:
         raise ValueError("FROZEN_KEY_DRIFT")
     if inputs["action"] != request.action or inputs.get("grant_id") != request.grant_id:
         raise ValueError("FROZEN_KEY_DRIFT")
-    if inputs["request_digest"] != request.digest:
+    presented = inputs["request_digest"]
+    draft = _grant_scope_draft(request, str(presented))
+    if presented != request.digest:
+        store.write_receipt(
+            decision="DENY",
+            validator="request_digest",
+            reason=draft,
+            grant_id=request.grant_id,
+        )
         output = {
             "verdict": "DENY",
-            "reason": "ALLOW_ON_DIGEST_MISMATCH grant_scope_draft action=internal_readonly",
+            "reason": draft,
             "grant_ref": None,
         }
         return emit_envelope(node_id="N9", at=at, inputs=dict(inputs), status="AUTHORIZATION_REQUIRED", output=output)
@@ -71,7 +94,7 @@ def run_n9(inputs: Mapping[str, Any], *, at: str, store: GrantStore, request: Au
         reason = result.get("reason") or "DENY"
         output = {
             "verdict": "DENY",
-            "reason": f"{reason}; grant_scope_draft action=internal_readonly amount_limit=0",
+            "reason": f"{reason}; {draft}",
             "grant_ref": None,
         }
         if not output["reason"]:

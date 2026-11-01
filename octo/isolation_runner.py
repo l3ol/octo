@@ -1,4 +1,4 @@
-"""Static bwrap runner contract. This module does not launch a sandbox.
+"""Hardened bwrap runner. ``apply_hardened_runner`` executes the contract.
 
 The argv and subprocess arguments mirror tests/fixtures/g2s1/isolation-policy.json.
 runtime_pass stays false. The pytest socket stub is not this recipe.
@@ -6,6 +6,8 @@ runtime_pass stays false. The pytest socket stub is not this recipe.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import subprocess
 
 TMPDIR = "/iso/tmp"
@@ -46,3 +48,48 @@ def bwrap_argv(iso_host_path: str, command: list[str]) -> list[str]:
         "--",
         *command,
     ]
+
+
+def apply_hardened_runner(iso_host_path: str, command: list[str], *, log_path: Path) -> dict:
+    """Run one command inside the hardened recipe and append a log line.
+
+    The log is runner evidence. It does not set runtime_pass.
+    """
+    argv = bwrap_argv(iso_host_path, command)
+    kwargs = runner_subprocess_kwargs()
+    path = Path(log_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        completed = subprocess.run(
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+            **kwargs,
+        )
+    except FileNotFoundError as exc:
+        record = {
+            "runtime_pass": False,
+            "returncode": None,
+            "argv": argv,
+            "close_fds": True,
+            "pass_fds": [],
+            "stdin": "devnull",
+            "error": "BWRAP_MISSING",
+        }
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+        raise FileNotFoundError("BWRAP_MISSING") from exc
+    text = completed.stdout.decode("utf-8", errors="replace")
+    record = {
+        "runtime_pass": False,
+        "returncode": completed.returncode,
+        "argv": argv,
+        "close_fds": True,
+        "pass_fds": [],
+        "stdin": "devnull",
+        "stdout": text,
+    }
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return record

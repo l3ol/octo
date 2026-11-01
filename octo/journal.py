@@ -18,9 +18,68 @@ import uuid
 
 from octo.governor import Denied
 from octo.grant import safe_path, write_once
+from octo.isolation_runner import apply_hardened_runner
 from octo.objects import canonical, utcnow
 
+_READ_PROGRAM = """
+import hashlib, json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+if not path.is_file():
+    raise SystemExit(2)
+data = path.read_bytes()
+sha = hashlib.sha256(data).hexdigest()
+json_digest = "-"
+try:
+    parsed = json.loads(data.decode("utf-8"))
+    raw = json.dumps(
+        parsed,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    json_digest = hashlib.sha256(raw).hexdigest()
+except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+    json_digest = "-"
+sys.stdout.write(sha + "\\n" + str(len(data)) + "\\n" + json_digest + "\\n")
+"""
+
 _BANNED = {".git", ".gx", ".founder-key", "brain"}
+
+
+def read_isolated_fixture(request, root: Path) -> dict:
+    """Read one granted file inside bwrap. No shell, network, or host write.
+
+    The bytes are read by the hardened runner. Missing files and paths outside
+    ``root`` raise. The effect is the content summary plus evidence path.
+    """
+    path = safe_path(Path(request.resource), root)
+    if not path.is_file():
+        raise FileNotFoundError("ARTIFACT_MISSING")
+    root_path = Path(root).resolve()
+    relative = path.resolve().relative_to(root_path).as_posix()
+    (root_path / "tmp").mkdir(parents=True, exist_ok=True)
+    result = apply_hardened_runner(
+        str(root_path),
+        ["/usr/bin/python3", "-c", _READ_PROGRAM, "/iso/" + relative],
+        log_path=root_path / "runner" / "read.log",
+    )
+    if result["returncode"] != 0:
+        raise FileNotFoundError("ARTIFACT_MISSING")
+    lines = [line for line in str(result["stdout"]).splitlines() if line]
+    if len(lines) < 3 or len(lines[0]) != 64 or not lines[1].isdigit():
+        raise RuntimeError("READ_RESULT_MISSING")
+    content_sha = lines[0]
+    summary = {"bytes": int(lines[1]), "sha256": content_sha}
+    if lines[2] != "-":
+        summary["json_digest"] = lines[2]
+    return {
+        "object_id": "read-" + content_sha[:16],
+        "evidence_ref": relative,
+        "content_sha256": content_sha,
+        "bytes": int(lines[1]),
+        "summary": summary,
+    }
 
 
 class Blocked(RuntimeError):
@@ -133,12 +192,12 @@ class Journal:
         return int(self.db.execute("SELECT COUNT(*) AS n FROM effects").fetchone()["n"])
 
     def apply(self, request) -> dict:
-        """Record the read effect once. This does not execute a command."""
-        from octo.objects import digest
-        effect = {
-            "object_id": "read-" + digest({"resource": request.resource})[:16],
-            "op": "read",
-        }
+        """Read the granted fixture once and store that result for reconcile.
+
+        The effect is the file's bytes summary and evidence path. An ``op``
+        label is not a task result and is not written.
+        """
+        effect = read_isolated_fixture(request, self.root)
         with self.db:
             self.db.execute(
                 "INSERT INTO effects(key, request_digest, object_id, result) VALUES(?,?,?,?)",

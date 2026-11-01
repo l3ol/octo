@@ -1,12 +1,13 @@
 """Builder selftest only. Not product acceptance, independent verification, or runtime_pass."""
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import subprocess
 
 import pytest
 
-from octo.closing import run_n11, run_n12, run_n13
+from octo.closing import TA_REVIEWER_ID, run_n11, run_n12, run_n13
 from octo.envelope import validate_envelope
 from octo.gateway import Gateway
 from octo.grant import AuthorizationRequest, GrantStore
@@ -44,6 +45,14 @@ def _pack(intent_text_input, intent_output) -> dict:
             }]
         },
         "n5": {"claims": ["closing nodes write only to the isolation store"]},
+        "n5_bound": {
+            "facts": [{
+                "claim": "closing nodes write only to the isolation store",
+                "verdict": "CLAIM",
+                "evidence_ref": "SOURCE_UNAVAILABLE",
+                "freshness": "TEST_FIXTURE",
+            }],
+        },
         "n8": {
             "intent": intent_output,
             "options": [{
@@ -103,14 +112,28 @@ def test_standard_run_closes_without_n6_n7_envelopes(tmp_path):
         validate_envelope(envelope)
         assert envelope["inputs_hash"] == inputs_hash(envelope["inputs"])
         assert "DEGRADED_SKIP" not in envelope["status"]
+    assert result["status"] == "BLOCKED"
+    assert result["envelopes"][7]["inputs"]["context_pack"] == result["envelopes"][1]["output"]
+    assert set(result["envelopes"][7]["inputs"]["context_pack"]) == {
+        "intent_id", "current_decisions", "key_evidence", "open_states", "prohibitions", "assembled_at", "sources",
+    }
     assert result["envelopes"][8]["output"]["verdict"] == "BLOCKED"
     assert set(result["envelopes"][8]["output"]) == {"verdict", "evidence", "scope"}
     assert result["envelopes"][9]["output"]["written"][0]["object"] == "Receipt"
+    assert result["envelopes"][10]["inputs"]["writeback_state"] == "OK"
+    assert result["envelopes"][10]["inputs"]["handoff_state"] == "NOT_READY"
     assert result["envelopes"][10]["output"]["notify_once"] is True
     assert result["envelopes"][10]["output"]["state"] == "BLOCKED"
-    written = tmp_path / "capture" / result["envelopes"][9]["output"]["written"][0]["path"]
+    relative = result["envelopes"][9]["output"]["written"][0]["path"]
+    written = tmp_path / relative
+    assert relative.startswith("capture/")
     assert written.is_file()
     assert store_contains(tmp_path, written)
+    effect = json.loads(journal.db.execute("SELECT result FROM effects").fetchone()["result"])
+    assert effect["content_sha256"] == hashlib.sha256(b"synthetic").hexdigest()
+    assert "op" not in effect
+    assert (tmp_path / effect["evidence_ref"]).read_bytes() == b"synthetic"
+    assert (tmp_path / "runner" / "read.log").is_file()
     assert not (ROOT / "writeback").exists()
     assert not (ROOT / "brain").exists()
     journal.close()
@@ -135,6 +158,146 @@ def test_n13_rejects_old_path_shape():
             {"name": "../outside.json", "record": {"selftest": "builder"}},
             at=AT,
         )
+
+
+def _verified_receipt(path: Path, *, candidate: str, verdict: str) -> dict:
+    body = {
+        "issuer": TA_REVIEWER_ID,
+        "candidate_sha": candidate,
+        "verdict": verdict,
+        "scope": {"route": "internal_readonly"},
+        "signed_by": TA_REVIEWER_ID,
+        "test_only": False,
+    }
+    path.write_text(json.dumps(body), encoding="utf-8")
+    return {**body, "path": str(path)}
+
+
+def test_n12_failure_changes_writeback_and_verified_receipt_changes_handoff(tmp_path):
+    """H1 writeback follows a failed capture. H3 handoff follows a verified receipt."""
+    from octo.nodes import run_n1
+
+    n1_in = PLAN["nodes"]["N1"]["input"]
+    intent = run_n1(n1_in, at=AT)["output"]
+    journal = Journal(tmp_path)
+    grants = GrantStore(tmp_path, fixture_key=KEY)
+    resource = tmp_path / "readable.txt"
+    resource.write_text("synthetic", encoding="utf-8")
+    request = AuthorizationRequest(
+        actor="actor-a",
+        action="internal_readonly",
+        resource=str(resource),
+        parameters={"op": "read"},
+        intent_id=intent["intent_id"],
+        idempotency_key="idem-h1",
+        git_candidate_sha=_git("rev-parse", "HEAD"),
+        tree_sha=_git("rev-parse", "HEAD^{tree}"),
+        grant_id="g-h1",
+    )
+    grants.issue_test_fixture(
+        grant_id=request.grant_id,
+        subject=request.actor,
+        resource=str(tmp_path),
+        request_digest_hex=request.digest,
+        git_candidate=request.git_candidate_sha,
+        tree=request.tree_sha,
+        now=NOW,
+    )
+    (tmp_path / "capture").write_text("not-a-directory", encoding="utf-8")
+    failed = run_standard(
+        {"action_type": "internal_readonly", "grant_ref": request.grant_id},
+        {**_pack(n1_in, intent), "gateway": Gateway(journal, grants)},
+        at=AT,
+        request=request,
+        store=grants,
+        now=NOW,
+    )
+    failed_n13 = failed["envelopes"][-1]
+    assert failed_n13["node_id"] == "N13"
+    assert failed_n13["inputs"]["writeback_state"] == "FAILED"
+    assert failed["status"] != "OK"
+    journal.close()
+
+    passed_root = tmp_path / "pass-store"
+    passed_root.mkdir()
+    journal_ok = Journal(passed_root)
+    grants_ok = GrantStore(passed_root, fixture_key=KEY)
+    readable = passed_root / "readable.txt"
+    readable.write_text("synthetic", encoding="utf-8")
+    request_ok = AuthorizationRequest(
+        actor="actor-a",
+        action="internal_readonly",
+        resource=str(readable),
+        parameters={"op": "read"},
+        intent_id=intent["intent_id"],
+        idempotency_key="idem-h3",
+        git_candidate_sha=request.git_candidate_sha,
+        tree_sha=request.tree_sha,
+        grant_id="g-h3",
+    )
+    grants_ok.issue_test_fixture(
+        grant_id=request_ok.grant_id,
+        subject=request_ok.actor,
+        resource=str(passed_root),
+        request_digest_hex=request_ok.digest,
+        git_candidate=request_ok.git_candidate_sha,
+        tree=request_ok.tree_sha,
+        now=NOW,
+    )
+    receipt_path = passed_root / "ta-receipt.json"
+    pack = _pack(n1_in, intent)
+    pack["gateway"] = Gateway(journal_ok, grants_ok)
+    pack["independent_receipt"] = _verified_receipt(
+        receipt_path, candidate=request_ok.git_candidate_sha, verdict="PASS",
+    )
+    passed = run_standard(
+        {"action_type": "internal_readonly", "grant_ref": request_ok.grant_id},
+        pack,
+        at=AT,
+        request=request_ok,
+        store=grants_ok,
+        now=NOW,
+    )
+    assert passed["envelopes"][-3]["output"]["verdict"] == "PASS"
+    assert passed["envelopes"][-1]["inputs"]["writeback_state"] == "OK"
+    assert passed["envelopes"][-1]["inputs"]["handoff_state"] == "READY"
+    assert passed["status"] == "OK"
+    blocked_path = passed_root / "ta-blocked.json"
+    pack["independent_receipt"] = _verified_receipt(
+        blocked_path, candidate=request_ok.git_candidate_sha, verdict="BLOCKED",
+    )
+    request_blocked = AuthorizationRequest(
+        actor="actor-a",
+        action="internal_readonly",
+        resource=str(readable),
+        parameters={"op": "read"},
+        intent_id=intent["intent_id"],
+        idempotency_key="idem-h3b",
+        git_candidate_sha=request.git_candidate_sha,
+        tree_sha=request.tree_sha,
+        grant_id="g-h3b",
+    )
+    grants_ok.issue_test_fixture(
+        grant_id=request_blocked.grant_id,
+        subject=request_blocked.actor,
+        resource=str(passed_root),
+        request_digest_hex=request_blocked.digest,
+        git_candidate=request_blocked.git_candidate_sha,
+        tree=request_blocked.tree_sha,
+        now=NOW,
+    )
+    blocked = run_standard(
+        {"action_type": "internal_readonly", "grant_ref": request_blocked.grant_id},
+        pack,
+        at=AT,
+        request=request_blocked,
+        store=grants_ok,
+        now=NOW,
+    )
+    assert blocked["envelopes"][-3]["output"]["verdict"] == "BLOCKED"
+    assert blocked["envelopes"][-1]["inputs"]["handoff_state"] == "NOT_READY"
+    assert blocked["status"] != "OK"
+    journal_ok.close()
 
 
 def test_n11_rejects_file_digest_as_git_candidate():
