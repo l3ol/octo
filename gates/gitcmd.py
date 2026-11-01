@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
 from pathlib import Path
 
 
 def run_git(repo: str | Path, *args: str, check: bool = True, input_bytes: bytes | None = None) -> subprocess.CompletedProcess:
     command = ["git", "-C", str(repo), "-c", "user.email=gates-drill@example.invalid", "-c", "user.name=gates-drill", *args]
-    return subprocess.run(command, check=check, input=input_bytes, capture_output=True)
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    return subprocess.run(command, check=check, input=input_bytes, capture_output=True, env=env)
 
 
 def rev_parse(repo: str | Path, rev: str) -> str:

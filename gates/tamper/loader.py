@@ -9,7 +9,14 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from gates.gitcmd import archive_sha256, object_type, rev_parse, show_bytes
+from gates.config_inventory import (
+    CANONICAL_SHA256,
+    CONFIG_MANIFEST_KEYS,
+    InventoryError,
+    digest_config_manifest,
+    evaluate_pinned_config,
+)
+from gates.gitcmd import archive_sha256, object_type, rev_parse
 from gates.rules import RULES, RULE_VERSION, RuleSet
 from gates.types import failed, is_sha40, make_result, passed, sha256_hex
 
@@ -242,7 +249,7 @@ def _load_real_pin(
 ):
     rules = RULES
 
-    def reject(pin_class: str, **extra):
+    def reject(pin_class: str, reason_code: str = "TAMPER_PIN_UNSET_OR_INVALID", **extra):
         details = {
             "fallback_used": False,
             "consulted": ["external_manifest.gates_pin_sha"],
@@ -258,7 +265,7 @@ def _load_real_pin(
         result = make_result(
             gate="tamper",
             decision="REJECT",
-            reason_code="TAMPER_PIN_UNSET_OR_INVALID",
+            reason_code=reason_code,
             candidate_sha=candidate_sha,
             base_sha=base_sha,
             rule_version=rule_version,
@@ -288,16 +295,30 @@ def _load_real_pin(
     if object_type(git_repo, pin) != "commit":
         return reject("not_commit", lookup_sha=pin, object_type=object_type(git_repo, pin))
     tree = rev_parse(git_repo, f"{pin}^{{tree}}")
+    gates_tree = rev_parse(git_repo, f"{pin}:gates")
     artifact = archive_sha256(git_repo, pin)
-    config = sha256_hex(show_bytes(git_repo, f"{pin}:gates/policy/GATES-PARAMETERS-CANONICAL.txt"))
+    if manifest.get("config_digest") == CANONICAL_SHA256:
+        return reject("config_incomplete", reason_code="CONFIG_DIGEST_INCOMPLETE", lookup_sha=pin)
+    try:
+        presented = {key: manifest[key] for key in CONFIG_MANIFEST_KEYS}
+        presented_digest = digest_config_manifest(presented)
+    except (KeyError, InventoryError):
+        return reject("config_incomplete", reason_code="CONFIG_DIGEST_INCOMPLETE", lookup_sha=pin)
+    try:
+        fresh = evaluate_pinned_config(git_repo, pin)
+    except InventoryError as exc:
+        return reject("config_incomplete", reason_code=exc.reason_code, lookup_sha=pin)
+    config = fresh["config_digest"]
     mismatches = []
-    if tree != manifest.get("gate_tree_sha"):
+    if gates_tree != manifest.get("gate_tree_sha"):
+        mismatches.append("tree")
+    if manifest.get("pin_tree_sha") not in (None, tree):
         mismatches.append("tree")
     if artifact != manifest.get("artifact_digest"):
         mismatches.append("artifact")
-    if config != manifest.get("config_digest"):
+    if manifest.get("config_digest") != presented_digest or presented != fresh["config_manifest"] or config != manifest.get("config_digest"):
         mismatches.append("config")
-    if manifest.get("rule_version") != rule_version:
+    if manifest.get("rule_version") != rule_version or manifest.get("rule_version") != fresh["config_manifest"]["rule_version"]:
         mismatches.append("rule_version")
     if mismatches:
         return reject("digest_mismatch", lookup_sha=pin, mismatches=mismatches)
@@ -315,7 +336,7 @@ def _load_real_pin(
     manifest_bytes = manifest_path.read_bytes()
     runtime = PinnedRuntime(
         gates_pin_sha=pin,
-        gate_tree_sha=tree,
+        gate_tree_sha=gates_tree,
         rule_version=rule_version,
         artifact_digest=artifact,
         config_digest=config,
@@ -331,7 +352,7 @@ def _load_real_pin(
         "worktree_consulted": False,
         "pin_value_class": "pinned_commit",
         "gates_pin_sha": pin,
-        "gate_tree_sha": tree,
+        "gate_tree_sha": gates_tree,
         "pin_loadpath": root,
         "module_origin": origin,
         "sys_path_gates_entry": entry,

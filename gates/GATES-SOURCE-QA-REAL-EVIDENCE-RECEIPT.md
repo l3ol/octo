@@ -1,5 +1,7 @@
 # GATES source QA real-evidence receipt
 
+> The HEAD fallback described in this historical receipt is the tip24 D1 violation. It is not current behavior and it is not a G4 re-freeze. See `GATES-TIP24-DEVIATIONS-DEV-RECEIPT.md`.
+
 - task_id: GATES-BUILD-2026-11-01
 - subtask: GATES-SOURCE-QA-DEV
 - status: REAL_EVIDENCE_IMPLEMENTED
@@ -14,7 +16,7 @@
 - draft PR: https://github.com/l3ol/octo/pull/12
 - authoritative Ops root: `/home/box/ops-isolation/gates/source-qa-isolation-bed-2026-11-01`
 - ops root visible on this VM: false
-- twin: isomorphic disposable bed built by `gates.isolation_bed.build_twin_bed`. It checks out `d50148d9…` when that object is in the clone. A shallow CI checkout deepens `origin` first and, if the object is still absent, detaches the twin at `HEAD` instead of inventing a SHA. Push URL stays `DISABLED-DO-NOT-PUSH`.
+- twin: isomorphic disposable bed built by `gates.isolation_bed.build_twin_bed`. Historical note (violation, not current behavior): this receipt's tree detached at `HEAD` when `d50148d9…` was absent. That fallback is removed. Push URL stays `DISABLED-DO-NOT-PUSH`.
 
 This is not a G4 seal and not an independent Reviewer PASS. Chief re-freezes G4.
 

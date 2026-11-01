@@ -15,15 +15,13 @@ from gates.gitcmd import rev_parse
 from gates.integrity.recovery import verify_recovery
 from gates.isolation_bed import (
     OPS_ROOT,
-    TIP_BINDING,
-    TREE_BINDING,
     authoritative_paths,
     build_twin_bed,
     materialize_pin_manifest,
     resolved_paths,
     snapshot_pin_commit,
 )
-from gates.rules import RULE_DIGEST, RULE_VERSION
+from gates.rules import CANONICAL_SHA256, RULE_DIGEST, RULE_VERSION
 from gates.tamper.loader import load_default_manifest, load_pin
 from gates.verification.ledger import ConsumptionLedger
 from tests.gates.support import TASK
@@ -63,7 +61,10 @@ def test_real_evidence_bed_and_pin_load():
     assert authoritative_paths()["root"] == OPS_ROOT
     ops_visible = OPS_ROOT.exists()
     root = Path(tempfile.mkdtemp(prefix="gates-twin-bed-"))
-    paths = build_twin_bed(root, _workspace(), TIP_BINDING)
+    workspace = _workspace()
+    build_candidate = rev_parse(workspace, "HEAD")
+    test_base = "5443c9b4dde7fc208a0a72457c87904650829f77"
+    paths = build_twin_bed(root, workspace, build_candidate)
     previous = _bind_env(paths)
     try:
         resolved = resolved_paths()
@@ -72,14 +73,22 @@ def test_real_evidence_bed_and_pin_load():
         assert not ops_visible
         head = rev_parse(paths["candidate_worktree"], "HEAD")
         tree = rev_parse(paths["candidate_worktree"], "HEAD^{tree}")
-        assert head == paths["resolved_tip"]
-        if paths["bound_tip_present"]:
-            assert head == TIP_BINDING
-            assert tree == TREE_BINDING
-        else:
-            assert head == rev_parse(_workspace(), "HEAD")
+        assert head == paths["resolved_tip"] == build_candidate
+        assert tree == rev_parse(workspace, "HEAD^{tree}")
         bare = paths["disposable_git"]
-        pin_sha = snapshot_pin_commit(bare, _workspace(), str(paths["resolved_tip"]))
+        proof = snapshot_pin_commit(
+            bare,
+            workspace,
+            build_candidate,
+            test_base_sha=test_base,
+        )
+        assert proof["status"] == "OK"
+        assert proof["method"] == "git-archive"
+        assert proof["source_commit"] == build_candidate
+        assert proof["pin_tree_sha"] == tree
+        assert proof["runtime_gates_pin_sha"] != build_candidate
+        assert proof["runtime_gates_pin_sha"] != test_base
+        pin_sha = proof["runtime_gates_pin_sha"]
         assert _SHA40.fullmatch(pin_sha)
         assert not pin_sha.startswith("0123456789abcdef0123")
         assert pin_sha != "a" * 40
@@ -91,8 +100,13 @@ def test_real_evidence_bed_and_pin_load():
             manifest_path=manifest_path,
             extract_root=extract,
             candidate_worktree=paths["candidate_worktree"],
+            build_candidate_sha=build_candidate,
+            test_base_sha=test_base,
         )
-        assert manifest["gate_tree_sha"] == rev_parse(bare, f"{pin_sha}^{{tree}}")
+        assert manifest["gate_tree_sha"] == rev_parse(bare, f"{pin_sha}:gates")
+        assert manifest["pin_tree_sha"] == rev_parse(bare, f"{pin_sha}^{{tree}}")
+        assert manifest["config_digest"] != CANONICAL_SHA256
+        assert manifest["parameters_canonical_sha256"] == CANONICAL_SHA256
         assert oct(manifest_path.stat().st_mode & 0o777) == "0o444"
         default_text = (paths["pin_loadpath"] / "manifests" / "default_manifest.UNSET_FAIL_CLOSED.json").read_text(encoding="utf-8")
         assert "UNSET_FAIL_CLOSED" in default_text
@@ -154,6 +168,10 @@ def test_real_evidence_bed_and_pin_load():
         bad_tree = dict(manifest)
         bad_tree["gate_tree_sha"] = "2" * 40
         assert load_pin(bad_tree, pin_loadpath=extract, manifest_path=manifest_path, git_repo=bare, candidate_worktree=paths["candidate_worktree"]).result.evidence["details"]["pin_value_class"] == "digest_mismatch"
+        only_cff = dict(manifest)
+        only_cff["config_digest"] = CANONICAL_SHA256
+        only_canonical = load_pin(only_cff, pin_loadpath=extract, manifest_path=manifest_path, git_repo=bare, candidate_worktree=paths["candidate_worktree"])
+        assert only_canonical.result.reason_code == "CONFIG_DIGEST_INCOMPLETE"
         link_parent = root / "symlink-load"
         link_parent.mkdir()
         (link_parent / "gates").symlink_to(paths["candidate_worktree"] / "gates")

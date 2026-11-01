@@ -1,6 +1,11 @@
 name: CI
 
+# pull_request starts this workflow only for PRs into main.
+# The job checks out the candidate commit by full SHA.
+# github.sha on pull_request is a synthetic ref and is not the candidate.
+# Run 41325626443 is historical only and is not a G4 re-freeze.
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
   pull_request:
@@ -10,12 +15,30 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout candidate commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install deps
         run: pip install -r requirements.txt
+
+      - name: Assert candidate HEAD tree and base
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          TRIGGER_SHA: ${{ github.sha }}
+          CHECKOUT_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: PYTHONPATH=. python -m gates.workflow_proof
+
       - name: Run tests
         run: PYTHONPATH=. pytest tests/ -q
