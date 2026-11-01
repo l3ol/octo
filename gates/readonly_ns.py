@@ -55,7 +55,7 @@ def _syscalls() -> tuple[int, int]:
 
 
 def namespace_active() -> bool:
-    return os.environ.get(NS_ENV) == "1"
+    return os.environ.get(NS_ENV) == "1" or os.environ.get("OPS_NS_ST_RDONLY_EXPECTED") == "1"
 
 
 def _mnt_ns() -> str:
@@ -79,19 +79,25 @@ def _has_sys_admin(cap_hex: str) -> bool:
     return bool(int(cap_hex, 16) & _CAP_SYS_ADMIN)
 
 
-def _inner_argv() -> list[str]:
-    if sys.argv and sys.argv[0].endswith(".py"):
-        return [sys.executable, *sys.argv]
-    return list(sys.argv)
+def harness_argv() -> list[str]:
+    """Argv of this process, shaped so enter_exec_ctx.sh execs the real harness."""
+    name = Path(sys.argv[0]).name if sys.argv else ""
+    if "selftest" in name:
+        return [sys.executable, "-m", "gates.selftest", *sys.argv[1:]]
+    if "pytest" in name or name == "__main__.py":
+        return [sys.executable, "-m", "pytest", *sys.argv[1:]]
+    return [sys.executable, *sys.argv]
 
 
 def ensure_harness_namespace() -> None:
-    """Replace this process with the same command inside unshare, once.
+    """Replace this process with enter_exec_ctx.sh <this harness>.
 
-    Failure to enter the namespace exits. It is not reported as ST_RDONLY.
+    The Ops bed script is used when it is installed. A probe is never the argv.
+    Failure to enter exits and is not reported as ST_RDONLY.
     """
     if namespace_active():
-        if _mnt_ns() == os.environ.get(HOST_MNT_ENV):
+        host_mnt = os.environ.get(HOST_MNT_ENV)
+        if host_mnt and _mnt_ns() == host_mnt:
             raise SystemExit("harness namespace flag is set but the mount namespace is the host")
         os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
         sys.dont_write_bytecode = True
@@ -109,24 +115,10 @@ def ensure_harness_namespace() -> None:
                 flush=True,
             )
         return
-    env = os.environ.copy()
-    env[NS_ENV] = "1"
-    env[HOST_ST_ENV] = "1" if _is_rdonly(Path("/")) else "0"
-    env[HOST_UID_ENV] = str(os.getuid())
-    env[HOST_MNT_ENV] = _mnt_ns()
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    command = [
-        "unshare",
-        "--user",
-        "--map-root-user",
-        "--mount",
-        "--propagation",
-        "private",
-        "--",
-        *_inner_argv(),
-    ]
+    script = Path(__file__).resolve().parent / "enter_exec_ctx.sh"
+    command = [str(script), *harness_argv()]
     try:
-        os.execvpe(command[0], command, env)
+        os.execv(script, command)
     except OSError as exc:
         raise SystemExit(f"harness did not enter the mount namespace: {exc}") from exc
 

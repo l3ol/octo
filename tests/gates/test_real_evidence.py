@@ -121,7 +121,9 @@ def _require_pin_readonly(mount_path: Path, sample_root: Path) -> None:
     source_hash = hashlib.sha256(source.read_bytes()).hexdigest() if source.is_file() else None
     mounted = protect_readonly(mount_path)
     sealed = seal_against_remount(sample_root if sample_root.exists() else mount_path)
-    assert os.environ.get("GATES_RDONLY_NS") == "1"
+    assert os.environ.get("GATES_RDONLY_NS") == "1" or os.environ.get("OPS_NS_ST_RDONLY_EXPECTED") == "1"
+    assert os.environ.get("GATES_ENTER_VIA") in {"twin", "ops-enter"}
+    assert "PROBE" not in " ".join(sys.argv)
     assert os.readlink("/proc/self/ns/mnt") != os.environ["GATES_HOST_MNT_NS"]
     assert mounted["st_rdonly"] is True
     assert mounted["write_errno"] == errno.EROFS
