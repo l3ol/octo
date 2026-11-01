@@ -17,7 +17,8 @@ mid-run upgrade stops with ``BLOCKED``. Full needs N6, N7, and full N9,
 which S1 does not implement, so the Router returns no node sequence and no
 node output. A Standard action whose N9 precheck has no usable ``grant_ref``
 returns ``AUTHORIZATION_REQUIRED`` plus a grant-scope draft and does not
-authorize execution. This module does not perform Grant's six checks.
+authorize execution. Passing ``n9`` from ``octo.n9.precheck`` binds the six
+validators; N10 must run that precheck before dispatch.
 
 Statuses emitted here are only ``OK``, ``BLOCKED``, and
 ``AUTHORIZATION_REQUIRED``.
@@ -131,11 +132,14 @@ def route(
     *,
     upgrade: bool = False,
     upgrade_reason: str = "",
+    n9: Mapping[str, Any] | None = None,
 ) -> RouteDecision:
     """Route ``request`` by ``action_type``.
 
-    ``upgrade`` / ``upgrade_reason`` are call signals, not routing fields.
-    A mapping that itself contains ``upgrade`` or ``complexity`` is rejected.
+    ``upgrade`` / ``upgrade_reason`` / ``n9`` are call signals, not routing
+    fields. A mapping that itself contains ``upgrade`` or ``complexity`` is
+    rejected. ``n9`` is the result of the six-check precheck when the caller
+    has one.
     """
     _reject_malformed(request, upgrade=upgrade, upgrade_reason=upgrade_reason)
     action_type = request["action_type"]
@@ -161,15 +165,11 @@ def route(
             "action_type is not in the S1 Standard allowlist",
         )
     if not _has_grant_ref(request):
-        return RouteDecision(
-            status="AUTHORIZATION_REQUIRED",
-            action_type=action_type,
-            tier="Standard",
-            nodes=S1_STANDARD_NODES,
-            reason="N9 precheck lacks a valid grant_ref; execution is not authorized",
-            code="AUTHORIZATION_REQUIRED",
-            execution_authorized=False,
-            grant_scope_draft=_grant_scope_draft(action_type),
+        return _authorization_required(action_type, "N9 precheck lacks a valid grant_ref; execution is not authorized")
+    if n9 is not None and (n9.get("status") != "OK" or n9.get("grant_ref") != request.get("grant_ref")):
+        return _authorization_required(
+            action_type,
+            str(n9.get("reason") or "N9 precheck did not allow this grant_ref"),
         )
     return RouteDecision(
         status="OK",
@@ -211,7 +211,7 @@ def _reject_malformed(
 
 
 def _has_grant_ref(request: Mapping[str, Any]) -> bool:
-    """A usable reference is a non-empty string. Six-check validation is T-05."""
+    """A non-empty string is only the shape gate. The six checks live in ``octo.n9``."""
     ref = request.get("grant_ref")
     return isinstance(ref, str) and ref.strip() != ""
 
@@ -228,6 +228,19 @@ def _grant_scope_draft(action_type: str) -> Mapping[str, Any]:
         "n9_precheck_alias": N9_MINIMAL_SAFETY_PRECHECK,
         "executable": False,
     })
+
+
+def _authorization_required(action_type: str, reason: str) -> RouteDecision:
+    return RouteDecision(
+        status="AUTHORIZATION_REQUIRED",
+        action_type=action_type,
+        tier="Standard",
+        nodes=S1_STANDARD_NODES,
+        reason=reason,
+        code="AUTHORIZATION_REQUIRED",
+        execution_authorized=False,
+        grant_scope_draft=_grant_scope_draft(action_type),
+    )
 
 
 def _blocked(
