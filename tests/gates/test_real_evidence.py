@@ -9,12 +9,12 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import gates.isolation_bed as isolation_bed
 from gates.atomic_merge.compare import compare_and_merge
 from gates.cas import GitCasPublisher
 from gates.gitcmd import rev_parse
 from gates.integrity.recovery import verify_recovery
 from gates.isolation_bed import (
-    OPS_ROOT,
     authoritative_paths,
     build_twin_bed,
     materialize_pin_manifest,
@@ -57,9 +57,61 @@ def _restore_env(previous: dict) -> None:
             os.environ[key] = value
 
 
-def test_real_evidence_bed_and_pin_load():
-    assert authoritative_paths()["root"] == OPS_ROOT
-    ops_visible = OPS_ROOT.exists()
+def _assert_visible_authority_bed() -> None:
+    """Read the Ops bed. Does not write it and does not treat visibility as ST_RDONLY."""
+    root = isolation_bed.OPS_ROOT
+    assert root.is_dir()
+    auth = authoritative_paths()
+    assert auth == {
+        "root": root,
+        "disposable_git": root / "git" / "octo-gates-DISPOSABLE.git",
+        "candidate_worktree": root / "worktrees" / "candidate-ro-checkout",
+        "pin_loadpath": root / "pin-loadpath-readonly",
+        "cas_slot": root / "cas-slot",
+        "l1_drill": root / "l1-recovery-drill",
+    }
+    previous = {key: os.environ.get(key) for key in (
+        "GATES_ISOLATION_BED_ROOT",
+        "GATES_PIN_LOADPATH",
+        "GATES_CAS_SLOT",
+        "GATES_L1_DRILL_ROOT",
+        "GATES_DISPOSABLE_GIT",
+    )}
+    for key in previous:
+        os.environ.pop(key, None)
+    try:
+        resolved = resolved_paths()
+    finally:
+        _restore_env(previous)
+    assert resolved["ops_root_visible"] is True
+    assert resolved["root"] == auth["root"]
+    for key in ("disposable_git", "pin_loadpath", "cas_slot", "l1_drill"):
+        assert resolved[key] == auth[key]
+        assert Path(resolved[key]).is_relative_to(root)
+    assert auth["candidate_worktree"].is_relative_to(root)
+    assert auth["candidate_worktree"] not in Path(resolved["pin_loadpath"]).parents
+    unset = load_pin(
+        load_default_manifest(),
+        pin_loadpath=auth["pin_loadpath"],
+        manifest_path=auth["pin_loadpath"] / "manifests" / "default_manifest.UNSET_FAIL_CLOSED.json",
+        candidate_worktree=auth["candidate_worktree"],
+        git_repo=auth["disposable_git"],
+        candidate_claimed_pin="f" * 40,
+        head_sha="e" * 40,
+    )
+    assert unset.ok is False
+    assert unset.result.reason_code == "TAMPER_PIN_UNSET_OR_INVALID"
+    details = unset.result.evidence["details"]
+    assert details["fallback_used"] is False
+    assert details["worktree_consulted"] is False
+    assert details["candidate_claimed_pin_ignored"] == "f" * 40
+    assert details["head_sha_ignored"] == "e" * 40
+    assert load_default_manifest()["gates_pin_sha"] == "UNSET_FAIL_CLOSED"
+
+
+def _assert_twin_bed_when_ops_absent() -> None:
+    assert isolation_bed.OPS_ROOT.exists() is False
+    assert authoritative_paths()["root"] == isolation_bed.OPS_ROOT
     root = Path(tempfile.mkdtemp(prefix="gates-twin-bed-"))
     workspace = _workspace()
     build_candidate = rev_parse(workspace, "HEAD")
@@ -68,9 +120,8 @@ def test_real_evidence_bed_and_pin_load():
     previous = _bind_env(paths)
     try:
         resolved = resolved_paths()
-        assert resolved["ops_root_visible"] is ops_visible
+        assert resolved["ops_root_visible"] is False
         assert resolved["pin_loadpath"] == paths["pin_loadpath"]
-        assert not ops_visible
         head = rev_parse(paths["candidate_worktree"], "HEAD")
         tree = rev_parse(paths["candidate_worktree"], "HEAD^{tree}")
         assert head == paths["resolved_tip"] == build_candidate
@@ -190,6 +241,17 @@ def test_real_evidence_bed_and_pin_load():
     finally:
         _restore_env(previous)
         shutil.rmtree(root, ignore_errors=True)
+
+
+def test_real_evidence_bed_and_pin_load(tmp_path, monkeypatch):
+    if isolation_bed.OPS_ROOT.exists():
+        _assert_visible_authority_bed()
+        return
+    _assert_twin_bed_when_ops_absent()
+    stand_in = tmp_path / "authority-bed"
+    stand_in.mkdir()
+    monkeypatch.setattr(isolation_bed, "OPS_ROOT", stand_in)
+    _assert_visible_authority_bed()
 
 
 def test_publisher_missing_does_not_move_ref_or_merge():
