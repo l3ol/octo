@@ -53,7 +53,7 @@ def test_hardened_runner_applies_proc_and_dev_contract(tmp_path):
     )
     result = apply_hardened_runner(str(iso), ["/usr/bin/python3", "-c", probe], log_path=log_path)
     assert result["runtime_pass"] is False
-    assert result["returncode"] == 0
+    assert result["returncode"] == 0, result["stdout"]
     assert "PIDS 1" in result["stdout"]
     assert "DEV_WRITE 30" in result["stdout"]
     assert "ISO_WRITE OK" in result["stdout"]
