@@ -1,0 +1,330 @@
+{
+  "meta": {
+    "dispatch_id": "PRODUCT-BUILD-2026-11-01-G2-S1-TB-01",
+    "a2_sha": "f08338f922404f637f90a3118d1aaf5bd0f3148508f711ece5a85d00d7e05f09",
+    "cci_sha": "958fa84d417ff13eab55dfd32e30f329f365f86e41bb8a9d8f91c91a82745d0b",
+    "frozen_basis": {
+      "entry": "00e05cc104da76bdba63447ff3791916a5c7a64ce6d4019b5d57dba1ebe2ec4b",
+      "io13": "27f3378e0f032c6c578ef9be1ed5b5f6dcde161e56a7e7473462a1e4fdd85c59",
+      "readme": "c4ff0e5fbf494ed71be449ec3b45e301b56d6ce9ff3b79c2018759ed71232555"
+    },
+    "hash_rule": "sha256(canonical_json(input)); sort_keys, separators (,:), ensure_ascii=False, UTF-8, no trailing newline; at excluded",
+    "produced_at": "2026-11-01T20:57:38+08:00 Asia/Shanghai"
+  },
+  "nodes": {
+    "N1": {
+      "input": {
+        "text": "{\"acceptance\":[\"Frozen node input/output schemas and real recomputable inputs_hash for N1/N2/N3/N4/N5/N8; exclusions do not fabricate N6/N7 output.\",\"Action-type Router; no complexity compatibility; frozen downgrade states only; required Full nodes/upgrade/unknown action stop Standard.\",\"N9 actual six validators, six negative DENY Receipts plus positive test-domain ALLOW and real validated grant_ref; no mock or reality authorization.\",\"N10 Journal before dispatch, idempotency/request_digest, UNKNOWN_COMMIT reconciliation without blind retry.\",\"N11/N12/N13 frozen output, isolation writeback and separate states; no Builder runtime PASS.\",\"Source bytes/SHA256/Git blob/path/commit independently checked by Grok; selected-range import manifest bound to snapshot.\",\"Final candidate contains static templates only; runtime TEST_FIXTURE/TEST_ONLY Grant and evidence generated externally after freeze, digests bound without rewriting candidate.\",\"Isolation capability report and actual proof limits; insufficient isolation prevents T8 no-external-side-effect conclusion and G3 PASS.\",\"Reviewer entry and old PASS invalidation for any changed base/candidate/scope_digest/fixture_digest; fixed TA Reviewer independently confirms current qualification after candidate freeze.\",\"Clean fixed-candidate final selftest and handoff_snapshot with tree, full inputs, scope manifest, fixture/artifact digests, commands/exit codes/raw logs; stop candidate modifications.\"],\"assembly_note\":\"Mechanical instruction transcription for explicit Chief binding. Not a third Chief signature or runtime PASS. Approval receipts remain external to this canonical object to avoid self-reference.\",\"base_sha\":\"5443c9b4dde7fc208a0a72457c87904650829f77\",\"binding_addendum_sha\":\"f08338f922404f637f90a3118d1aaf5bd0f3148508f711ece5a85d00d7e05f09\",\"dispatch_id\":\"PRODUCT-BUILD-2026-11-01-G2-S1-TB-01\",\"execution_options\":[{\"description\":\"Use fixed GitHub base, review and adapt primitives from six fixed Mac source candidates; build only the already agreed Standard minimal loop with real minimal N9 safety checks.\",\"id\":\"S1_CONTROLLED_REUSE\",\"not_a_node_N6_output\":true,\"source_binding\":\"A2-1 / A2-3\",\"source_consensus_sha\":\"6b5d6b3e58841fe65ae088bcad8e80f7b9b939cb28339a6bead175e87a922ab6\"}],\"frozen_basis\":{\"entry\":\"00e05cc104da76bdba63447ff3791916a5c7a64ce6d4019b5d57dba1ebe2ec4b\",\"io13\":\"27f3378e0f032c6c578ef9be1ed5b5f6dcde161e56a7e7473462a1e4fdd85c59\",\"readme\":\"c4ff0e5fbf494ed71be449ec3b45e301b56d6ce9ff3b79c2018759ed71232555\"},\"independent_plan_review_shas\":{\"gpt\":\"ce438f69a2e6830a78ba98f516380ee323e4f7c74017ae91a46a9fdc8d3c17d1\",\"muse\":\"8862d0688f426d7b729c31a6a15a033cc8105550d3d6f183bf458486bdbb31c2\"},\"non_goals\":[\"N6/N7 full implementation\",\"Full route\",\"resident Chief channel\",\"production\",\"UI\",\"Path B\",\"merge\",\"deploy\"],\"plan_sha\":\"69466e8573c680d01abe18c2bf3ba09548a2c5ec263517dbf73cd74f857fa722\",\"prior_consensus_original_shas\":{\"gpt_counter\":\"6b5d6b3e58841fe65ae088bcad8e80f7b9b939cb28339a6bead175e87a922ab6\",\"gpt_independent\":\"b854ed2f234906e4bdee34a08cda8991eaa43645c0c4729ebb5605cf51315255\",\"muse_independent\":\"016d104e482aed8f816cb43c27abc158e92b026fe3f335e23b26cd633e277a82\",\"muse_mutual\":\"623bccfb1e214dd57a0ed0394b3efa2a0f3f7f7cb74d3098dc9050cc9c5299ab\"},\"product\":\"Octo Company Continuity Layer\",\"prohibitions\":[\"No product goals, frozen PRD, or authorization changes.\",\"No merge/deploy/production credentials/payments/deletion/external effects/Path B.\",\"No history merge/rebase or wholesale source copy; no brain/DB/history Receipts/Grant instances/private data/untracked docs/credentials/machine config import.\",\"No new channels, poller restart, installation or permission expansion.\",\"No squad/Builder/Chief signing independent runtime PASS; no G3 before fixed candidate and Reviewer qualification.\",\"No upgrading P0/GrokBot basis candidates; no M0 rerun; no routine Founder continue gate.\"],\"repo\":\"l3ol/octo\",\"reuse_source_sha\":\"4caf7ea4838f7b5aefff763abf9607d3d426c4e6\",\"reviewer\":{\"agent_id\":\"agt_6ae61c44e54081918e81a0adea556ef8\",\"qualification\":\"Historical self-check only; current candidate independence and evidence readability must be confirmed by Reviewer at G3.\",\"selfcheck_sha\":\"ba92072f4711b3ae49eb0b3b9c15a9d4abbef47f5f96147b072b2cb8895695bc\",\"session\":\"https://chatgpt.com/c/6ae6216e-bbec-83e8-87dc-c3edd9027bcc\"},\"scope\":{\"how\":\"Original plan and taskpack subject to binding A2; T-00A materializes frozen node contracts and actual input hashes before dependent implementation/N9/N10.\",\"implementation_branch\":\"dev/product-s1-standard-loop\",\"nodes\":[\"N1\",\"N2\",\"N3\",\"N4\",\"N5\",\"N8\",\"N9_MINIMAL_SAFETY_PRECHECK\",\"N10\",\"N11\",\"N12\",\"N13\"],\"route\":\"Standard internal_readonly with N9 precheck before N10\",\"writeback\":\"external isolated test store only\"},\"stop\":\"G2 code and selftests -> fixed candidate/handoff_snapshot -> no further candidate change -> independent TA Reviewer G3. G3 is outside this plan gate.\",\"task_id\":\"PRODUCT-BUILD-2026-11-01\",\"taskpack_sha\":\"61b0df730d5b0392580c77f95364e1e38a6870e014f6ddce725973a839e82a8c\"}",
+        "source": {
+          "kind": "cci_sha256",
+          "sha256": "958fa84d417ff13eab55dfd32e30f329f365f86e41bb8a9d8f91c91a82745d0b",
+          "locator": "release-tb-01/CHIEF-CONSENSUS-INSTRUCTION-G2-S1.json"
+        }
+      },
+      "inputs_hash": "eac558dfd8e711cfa265045134697e7cc71264d1833e5c0ad6acd57dba82ead2",
+      "output_schema": "{intent_id,normalized_goal,expected_output,project,state}",
+      "output_sample": {
+        "intent_id": "intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01",
+        "normalized_goal": "Build the agreed Standard internal_readonly minimal loop (N1,N2,N3,N4,N5,N8,N9 minimal safety precheck,N10..N13) on dev/product-s1-standard-loop from base 5443c9b4 with controlled reuse from Mac 4caf7ea4.",
+        "expected_output": "Fixed G2 candidate + selftests + handoff_snapshot for independent TA Reviewer G3; no merge/deploy.",
+        "project": "Octo Company Continuity Layer",
+        "state": "ACTIVE"
+      },
+      "status": "PLAN_MATERIALIZED",
+      "sample_kind": "plan_materialization_sample",
+      "notes": "text = exact UTF-8 decode of CCI bytes; source object binds CCI sha256."
+    },
+    "N2": {
+      "input": {
+        "intent_id": "intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01"
+      },
+      "inputs_hash": "46c64b983b0c0c1a1a26702a4aa0451ac54f76592972478bb7e5106c70c178e1",
+      "output_schema": "{intent_id,current_decisions[],key_evidence[],open_states[],prohibitions[],assembled_at,sources[]}",
+      "output_sample": {
+        "intent_id": "intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01",
+        "current_decisions": [
+          "CCI dispatch PRODUCT-BUILD-2026-11-01-G2-S1-TB-01 execution_option S1_CONTROLLED_REUSE",
+          "PLAN-GATE verdict AUTHORIZED_FOR_G2_IMPLEMENTATION",
+          "A2 binding f08338f9 governs node contracts"
+        ],
+        "key_evidence": [
+          "CCI sha256 958fa84d417ff13eab55dfd32e30f329f365f86e41bb8a9d8f91c91a82745d0b",
+          "A2 sha256 f08338f922404f637f90a3118d1aaf5bd0f3148508f711ece5a85d00d7e05f09",
+          "frozen io13 27f3378e",
+          "T0-REQUIREMENT-REGISTRY.md"
+        ],
+        "open_states": [
+          "kill_line SOURCE_UNAVAILABLE",
+          "Muse GrokBot v1.2 copy 181cbdde SOURCE_UNAVAILABLE",
+          "N6/N7 NOT_RUN_THIS_STAGE"
+        ],
+        "prohibitions": [
+          "No product goals, frozen PRD, or authorization changes.",
+          "No merge/deploy/production credentials/payments/deletion/external effects/Path B.",
+          "No history merge/rebase or wholesale source copy; no brain/DB/history Receipts/Grant instances/private data/untracked docs/credentials/machine config import.",
+          "No new channels, poller restart, installation or permission expansion.",
+          "No squad/Builder/Chief signing independent runtime PASS; no G3 before fixed candidate and Reviewer qualification.",
+          "No upgrading P0/GrokBot basis candidates; no M0 rerun; no routine Founder continue gate."
+        ],
+        "assembled_at": "PLAN_MATERIALIZATION_SAMPLE",
+        "sources": [
+          "CHIEF-CONSENSUS-INSTRUCTION-G2-S1.json",
+          "A2-FINAL-BINDING.txt",
+          "T0-REQUIREMENT-REGISTRY.md",
+          "T0-GAP-MAP.md",
+          "T0-BASIS-RECONCILE.md"
+        ]
+      },
+      "status": "PLAN_MATERIALIZED",
+      "sample_kind": "plan_materialization_sample",
+      "notes": "input only {intent_id} per A2-1."
+    },
+    "N3": {
+      "input": {
+        "intent": {
+          "intent_id": "intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01",
+          "normalized_goal": "Build the agreed Standard internal_readonly minimal loop (N1,N2,N3,N4,N5,N8,N9 minimal safety precheck,N10..N13) on dev/product-s1-standard-loop from base 5443c9b4 with controlled reuse from Mac 4caf7ea4.",
+          "expected_output": "Fixed G2 candidate + selftests + handoff_snapshot for independent TA Reviewer G3; no merge/deploy.",
+          "project": "Octo Company Continuity Layer",
+          "state": "ACTIVE"
+        },
+        "context_pack": {
+          "intent_id": "intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01",
+          "current_decisions": [
+            "CCI dispatch PRODUCT-BUILD-2026-11-01-G2-S1-TB-01 execution_option S1_CONTROLLED_REUSE",
+            "PLAN-GATE verdict AUTHORIZED_FOR_G2_IMPLEMENTATION",
+            "A2 binding f08338f9 governs node contracts"
+          ],
+          "key_evidence": [
+            "CCI sha256 958fa84d417ff13eab55dfd32e30f329f365f86e41bb8a9d8f91c91a82745d0b",
+            "A2 sha256 f08338f922404f637f90a3118d1aaf5bd0f3148508f711ece5a85d00d7e05f09",
+            "frozen io13 27f3378e",
+            "T0-REQUIREMENT-REGISTRY.md"
+          ],
+          "open_states": [
+            "kill_line SOURCE_UNAVAILABLE",
+            "Muse GrokBot v1.2 copy 181cbdde SOURCE_UNAVAILABLE",
+            "N6/N7 NOT_RUN_THIS_STAGE"
+          ],
+          "prohibitions": [
+            "No product goals, frozen PRD, or authorization changes.",
+            "No merge/deploy/production credentials/payments/deletion/external effects/Path B.",
+            "No history merge/rebase or wholesale source copy; no brain/DB/history Receipts/Grant instances/private data/untracked docs/credentials/machine config import.",
+            "No new channels, poller restart, installation or permission expansion.",
+            "No squad/Builder/Chief signing independent runtime PASS; no G3 before fixed candidate and Reviewer qualification.",
+            "No upgrading P0/GrokBot basis candidates; no M0 rerun; no routine Founder continue gate."
+          ],
+          "assembled_at": "PLAN_MATERIALIZATION_SAMPLE",
+          "sources": [
+            "CHIEF-CONSENSUS-INSTRUCTION-G2-S1.json",
+            "A2-FINAL-BINDING.txt",
+            "T0-REQUIREMENT-REGISTRY.md",
+            "T0-GAP-MAP.md",
+            "T0-BASIS-RECONCILE.md"
+          ]
+        },
+        "新事实/偏差信号": {
+          "source_files": [
+            "T0-REQUIREMENT-REGISTRY.md",
+            "T0-GAP-MAP.md",
+            "T0-BASIS-RECONCILE.md"
+          ],
+          "registry_judgments": {
+            "N1": "PARTIAL",
+            "N2": "PARTIAL (primitive) / node NOT_FOUND",
+            "N3": "NOT_FOUND; kill_line SOURCE_UNAVAILABLE",
+            "N4": "NOT_FOUND",
+            "N5": "PARTIAL"
+          },
+          "kill_line": "SOURCE_UNAVAILABLE",
+          "kill_line_rule": "判据不足→按冻结规则延续\"值得做\"；无 TEST_FIXTURE 也无业务阈值",
+          "muse_181cbdde": "SOURCE_UNAVAILABLE",
+          "gh_base": "5443c9b4dde7fc208a0a72457c87904650829f77",
+          "mac_reuse": "4caf7ea4838f7b5aefff763abf9607d3d426c4e6",
+          "tests_rerun_in_T0": false
+        }
+      },
+      "inputs_hash": "c34ecbc0fc8c8c169fd47f5c325ce61503612986aaaefe3dacf11e9045e6b622",
+      "output_schema": "{still_worth_it:bool,reason,kill_line}",
+      "output_sample": {
+        "still_worth_it": true,
+        "reason": "价值判据不足（kill_line SOURCE_UNAVAILABLE）→ 按 io13 N3 降级规则默认延续冻结判断（值得做）；T0 无新事实推翻冻结判断。",
+        "kill_line": "SOURCE_UNAVAILABLE"
+      },
+      "status": "PLAN_MATERIALIZED",
+      "sample_kind": "plan_materialization_sample",
+      "notes": "kill_line SOURCE_UNAVAILABLE; no business kill line invented."
+    },
+    "N4": {
+      "input": {
+        "intent": {
+          "intent_id": "intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01",
+          "normalized_goal": "Build the agreed Standard internal_readonly minimal loop (N1,N2,N3,N4,N5,N8,N9 minimal safety precheck,N10..N13) on dev/product-s1-standard-loop from base 5443c9b4 with controlled reuse from Mac 4caf7ea4.",
+          "expected_output": "Fixed G2 candidate + selftests + handoff_snapshot for independent TA Reviewer G3; no merge/deploy.",
+          "project": "Octo Company Continuity Layer",
+          "state": "ACTIVE"
+        }
+      },
+      "inputs_hash": "0ac13220a9099ce844bd60125df75419385dbc812bef2e26e968182fdfe1b477",
+      "output_schema": "{candidates:[{type:internal|oss|saas|api|mcp,ref,fit,cost_hint}]}",
+      "output_sample": {
+        "candidates": [
+          {
+            "type": "internal",
+            "ref": "GH l3ol/octo@5443c9b4dde7fc208a0a72457c87904650829f77 octo/models.py Intent/Evidence dataclasses",
+            "fit": "base branch; data objects only, no node functions",
+            "cost_hint": "low (already base)"
+          },
+          {
+            "type": "internal",
+            "ref": "MAC /Users/auroral/dev/octo@4caf7ea4838f7b5aefff763abf9607d3d426c4e6 octo/objects.py, journal.py:167, gateway.py:69",
+            "fit": "Intent/Evidence objects, supersede history, evidence ACTIVE check primitives",
+            "cost_hint": "medium (review+adapt, no wholesale copy)"
+          }
+        ]
+      },
+      "status": "PLAN_MATERIALIZED",
+      "sample_kind": "plan_materialization_sample",
+      "notes": "solution inventory, not evidence adjudication."
+    },
+    "N5": {
+      "input": {
+        "claims": [
+          "N1 Intent node implemented with normalized_goal/expected_output",
+          "kill_line frozen business value exists",
+          "Muse GrokBot v1.2 copy 181cbdde is available",
+          "MAC gateway.py validates evidence ACTIVE",
+          "Base sha is 5443c9b4dde7fc208a0a72457c87904650829f77"
+        ]
+      },
+      "inputs_hash": "07c5b6678d1d2d7c23f934427be1db6367663d5717d509b09479c6f42cf29221",
+      "output_schema": "{facts:[{claim,verdict:FACT|CLAIM|STALE,evidence_ref,freshness}],gaps:[]}",
+      "output_sample": {
+        "facts": [
+          {
+            "claim": "N1 Intent node implemented with normalized_goal/expected_output",
+            "verdict": "CLAIM",
+            "evidence_ref": "T0-REQUIREMENT-REGISTRY.md N1 PARTIAL",
+            "freshness": "T0 2026-11-01"
+          },
+          {
+            "claim": "kill_line frozen business value exists",
+            "verdict": "CLAIM",
+            "evidence_ref": "T0-BASIS-RECONCILE.md §3 SOURCE_UNAVAILABLE",
+            "freshness": "T0 2026-11-01"
+          },
+          {
+            "claim": "Muse GrokBot v1.2 copy 181cbdde is available",
+            "verdict": "CLAIM",
+            "evidence_ref": "T0-BASIS-RECONCILE.md §2 SOURCE_UNAVAILABLE",
+            "freshness": "T0 2026-11-01"
+          },
+          {
+            "claim": "MAC gateway.py validates evidence ACTIVE",
+            "verdict": "FACT",
+            "evidence_ref": "MAC octo/gateway.py:69 (T0 registry N5)",
+            "freshness": "MAC@4caf7ea4; tests not rerun"
+          },
+          {
+            "claim": "Base sha is 5443c9b4dde7fc208a0a72457c87904650829f77",
+            "verdict": "FACT",
+            "evidence_ref": "CCI base_sha; T0-BASE-SHA.md",
+            "freshness": "2026-11-01"
+          }
+        ],
+        "gaps": [
+          "kill_line source",
+          "Muse 181cbdde copy",
+          "MAC R-*.json not individually opened"
+        ]
+      },
+      "status": "PLAN_MATERIALIZED",
+      "sample_kind": "plan_materialization_sample",
+      "notes": "FACT/CLAIM/STALE adjudication, not solution list."
+    },
+    "N8": {
+      "input": {
+        "intent": {
+          "intent_id": "intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01",
+          "normalized_goal": "Build the agreed Standard internal_readonly minimal loop (N1,N2,N3,N4,N5,N8,N9 minimal safety precheck,N10..N13) on dev/product-s1-standard-loop from base 5443c9b4 with controlled reuse from Mac 4caf7ea4.",
+          "expected_output": "Fixed G2 candidate + selftests + handoff_snapshot for independent TA Reviewer G3; no merge/deploy.",
+          "project": "Octo Company Continuity Layer",
+          "state": "ACTIVE"
+        },
+        "options": [
+          {
+            "description": "Use fixed GitHub base, review and adapt primitives from six fixed Mac source candidates; build only the already agreed Standard minimal loop with real minimal N9 safety checks.",
+            "id": "S1_CONTROLLED_REUSE",
+            "not_a_node_N6_output": true,
+            "source_binding": "A2-1 / A2-3",
+            "source_consensus_sha": "6b5d6b3e58841fe65ae088bcad8e80f7b9b939cb28339a6bead175e87a922ab6"
+          }
+        ]
+      },
+      "inputs_hash": "02f7f3bad5cdd4fa6fcdb987e195c091834368e8ee079ca6696ca85da1f9eeac",
+      "output_schema": "{mvp:{scope,acceptance[],not_in_scope[]}}",
+      "output_sample": {
+        "mvp": {
+          "scope": {
+            "how": "Original plan and taskpack subject to binding A2; T-00A materializes frozen node contracts and actual input hashes before dependent implementation/N9/N10.",
+            "implementation_branch": "dev/product-s1-standard-loop",
+            "nodes": [
+              "N1",
+              "N2",
+              "N3",
+              "N4",
+              "N5",
+              "N8",
+              "N9_MINIMAL_SAFETY_PRECHECK",
+              "N10",
+              "N11",
+              "N12",
+              "N13"
+            ],
+            "route": "Standard internal_readonly with N9 precheck before N10",
+            "writeback": "external isolated test store only"
+          },
+          "acceptance": [
+            "Frozen node input/output schemas and real recomputable inputs_hash for N1/N2/N3/N4/N5/N8; exclusions do not fabricate N6/N7 output.",
+            "Action-type Router; no complexity compatibility; frozen downgrade states only; required Full nodes/upgrade/unknown action stop Standard.",
+            "N9 actual six validators, six negative DENY Receipts plus positive test-domain ALLOW and real validated grant_ref; no mock or reality authorization.",
+            "N10 Journal before dispatch, idempotency/request_digest, UNKNOWN_COMMIT reconciliation without blind retry.",
+            "N11/N12/N13 frozen output, isolation writeback and separate states; no Builder runtime PASS.",
+            "Source bytes/SHA256/Git blob/path/commit independently checked by Grok; selected-range import manifest bound to snapshot.",
+            "Final candidate contains static templates only; runtime TEST_FIXTURE/TEST_ONLY Grant and evidence generated externally after freeze, digests bound without rewriting candidate.",
+            "Isolation capability report and actual proof limits; insufficient isolation prevents T8 no-external-side-effect conclusion and G3 PASS.",
+            "Reviewer entry and old PASS invalidation for any changed base/candidate/scope_digest/fixture_digest; fixed TA Reviewer independently confirms current qualification after candidate freeze.",
+            "Clean fixed-candidate final selftest and handoff_snapshot with tree, full inputs, scope manifest, fixture/artifact digests, commands/exit codes/raw logs; stop candidate modifications."
+          ],
+          "not_in_scope": [
+            "N6/N7 full implementation",
+            "Full route",
+            "resident Chief channel",
+            "production",
+            "UI",
+            "Path B",
+            "merge",
+            "deploy",
+            "No product goals, frozen PRD, or authorization changes.",
+            "No merge/deploy/production credentials/payments/deletion/external effects/Path B.",
+            "No history merge/rebase or wholesale source copy; no brain/DB/history Receipts/Grant instances/private data/untracked docs/credentials/machine config import.",
+            "No new channels, poller restart, installation or permission expansion.",
+            "No squad/Builder/Chief signing independent runtime PASS; no G3 before fixed candidate and Reviewer qualification.",
+            "No upgrading P0/GrokBot basis candidates; no M0 rerun; no routine Founder continue gate."
+          ]
+        }
+      },
+      "status": "PLAN_MATERIALIZED",
+      "sample_kind": "plan_materialization_sample",
+      "notes": "options = CCI.execution_options exactly (signed); NOT N6 output."
+    },
+    "N6": {
+      "status": "NOT_RUN_THIS_STAGE",
+      "output": null
+    },
+    "N7": {
+      "status": "NOT_RUN_THIS_STAGE",
+      "output": null
+    }
+  }
+}
