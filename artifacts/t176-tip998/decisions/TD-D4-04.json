@@ -1,0 +1,27 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "HEAD^{tree} mismatch \u2192 FAIL WORKFLOW_HEAD_UNPROVEN",
+  "g4_refrozen": false,
+  "id": "TD-D4-04",
+  "notes": "HEAD matches tip998 and HEAD^{tree} does not match the expected tree",
+  "observed": {
+    "actual_tree": "62fd51cb0b31eeed130007201cfd36bbca081c44",
+    "expected_tree": "443f3a3bd72f92172f4f5e243fdaebfa429d90ac",
+    "result": {
+      "actual_head": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+      "actual_tree": "62fd51cb0b31eeed130007201cfd36bbca081c44",
+      "base_sha": "24d558e193be6225aa2bb71bde3a75a2f7851b78",
+      "checkout_ref": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+      "expected_sha": "998784b3e6cc0e6e6597cde76ce018331d924a72",
+      "expected_tree": "443f3a3bd72f92172f4f5e243fdaebfa429d90ac",
+      "proven": false,
+      "reason_code": "WORKFLOW_HEAD_UNPROVEN",
+      "status": "FAIL"
+    }
+  },
+  "reason_code": "WORKFLOW_HEAD_UNPROVEN",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

@@ -1,0 +1,22 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "shallow clone that contains the full tip \u2192 OK and sha equals the input",
+  "g4_refrozen": false,
+  "id": "TD-D1-03",
+  "notes": "shallow clone whose tip object is present returns that same sha",
+  "observed": {
+    "parent_absent": true,
+    "result": {
+      "sha": "2c64da66af8333085ebb7a3f36da862d92c1da4c",
+      "status": "OK"
+    },
+    "returned_sha_equals_input": true,
+    "shallow": "true",
+    "tip": "2c64da66af8333085ebb7a3f36da862d92c1da4c"
+  },
+  "reason_code": null,
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

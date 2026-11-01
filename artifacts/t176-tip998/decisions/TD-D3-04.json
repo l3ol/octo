@@ -1,0 +1,18 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "manifest without rule_version \u2192 FAIL CONFIG_DIGEST_INCOMPLETE",
+  "g4_refrozen": false,
+  "id": "TD-D3-04",
+  "notes": "manifest without rule_version is CONFIG_DIGEST_INCOMPLETE",
+  "observed": {
+    "judge": {
+      "reason_code": "CONFIG_DIGEST_INCOMPLETE",
+      "status": "FAIL"
+    }
+  },
+  "reason_code": "CONFIG_DIGEST_INCOMPLETE",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

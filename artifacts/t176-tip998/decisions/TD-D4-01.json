@@ -1,0 +1,50 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "merge-ref workspace is not proven by metadata head_sha; WORKFLOW_HEAD_UNPROVEN",
+  "g4_refrozen": false,
+  "id": "TD-D4-01",
+  "notes": "merge-ref workspace was not treated as the tip on metadata head_sha alone",
+  "observed": {
+    "cli_metadata_claims_tip": {
+      "env": {
+        "CHECKOUT_REF": "7637044845198cf0a9dac6261ad1cf55ea41b13f",
+        "EVENT_NAME": "workflow_dispatch",
+        "TRIGGER_SHA": "7637044845198cf0a9dac6261ad1cf55ea41b13f"
+      },
+      "exit": 1,
+      "stderr": "",
+      "stdout": "checkout_ref=7637044845198cf0a9dac6261ad1cf55ea41b13f\nexpected_sha=7637044845198cf0a9dac6261ad1cf55ea41b13f\nactual_head=705478564a54596775f3d44b148732cf6887ff54\nexpected_tree=a11b9b50170544df3d0f1bf747c5a5921bfb349c\nactual_tree=7cfceeda638d6f3931d9ae8fe25934d02ef5bc8f\nbase_sha=bba25b6b812593a6ed7cbc9e22274aefc3bc88c2\nWORKFLOW_HEAD_UNPROVEN\n"
+    },
+    "cli_pull_request_merge_ref": {
+      "env": {
+        "CHECKOUT_REF": "705478564a54596775f3d44b148732cf6887ff54",
+        "EVENT_NAME": "pull_request",
+        "PR_BASE_SHA": "a8f5cc9aebf1c6db025fdc2d2a9fcd14bd440c6f",
+        "PR_HEAD_SHA": "7637044845198cf0a9dac6261ad1cf55ea41b13f",
+        "TRIGGER_SHA": "705478564a54596775f3d44b148732cf6887ff54"
+      },
+      "exit": 1,
+      "stderr": "",
+      "stdout": "WORKFLOW_HEAD_UNPROVEN\nworkspace or checkout ref is the pull_request trigger object\n"
+    },
+    "merge": "705478564a54596775f3d44b148732cf6887ff54",
+    "prove_checkout": {
+      "actual_head": "705478564a54596775f3d44b148732cf6887ff54",
+      "actual_tree": "7cfceeda638d6f3931d9ae8fe25934d02ef5bc8f",
+      "base_sha": "a8f5cc9aebf1c6db025fdc2d2a9fcd14bd440c6f",
+      "checkout_ref": "refs/pull/12/merge",
+      "expected_sha": "7637044845198cf0a9dac6261ad1cf55ea41b13f",
+      "expected_tree": "a11b9b50170544df3d0f1bf747c5a5921bfb349c",
+      "proven": false,
+      "reason_code": "WORKFLOW_HEAD_UNPROVEN",
+      "status": "FAIL"
+    },
+    "tip": "7637044845198cf0a9dac6261ad1cf55ea41b13f",
+    "trees_differ": true
+  },
+  "reason_code": "WORKFLOW_HEAD_UNPROVEN",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

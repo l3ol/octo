@@ -1,0 +1,18 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "cff bytes remain cff01a57\u2026 and 4332 bytes",
+  "g4_refrozen": false,
+  "id": "TD-D3-03",
+  "notes": "canonical parameter file bytes were not rewritten on this tip",
+  "observed": {
+    "bytes": 4332,
+    "head_blob_sha256": "cff01a57e38b16af6bc5545789949575b1cbcc3078cdf5bf3158cee4b56fd884",
+    "sha256": "cff01a57e38b16af6bc5545789949575b1cbcc3078cdf5bf3158cee4b56fd884",
+    "worktree_equals_head_blob": true
+  },
+  "reason_code": "CFF_UNCHANGED",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

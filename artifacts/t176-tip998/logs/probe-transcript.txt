@@ -1,0 +1,87 @@
+Independent probe transcript. Not a product patch. Not gates.selftest.
+Command: python3 artifacts/t176-tip998/probe/run_td_d1_d4.py
+Exit: 0
+Tip before and after: 998784b3e6cc0e6e6597cde76ce018331d924a72
+Tree before and after: 62fd51cb0b31eeed130007201cfd36bbca081c44
+Parent: 24d558e193be6225aa2bb71bde3a75a2f7851b78
+ops_root /home/box/ops-isolation/gates/source-qa-isolation-bed-2026-11-01 exists: false
+pytest: not installed. gates.selftest: not executed.
+Product tracked diff after the probe: none (only untracked artifacts/).
+
+TD-D1-01 PASS PIN_OBJECT_MISSING
+  result={"status":"FAIL","reason_code":"PIN_OBJECT_MISSING"} sha_absent=true HEAD unchanged
+
+TD-D1-02 PASS PIN_OBJECT_MISSING
+  shallow=true parent remained missing after fetch/deepen against an empty origin
+  result did not contain HEAD
+
+TD-D1-03 PASS
+  shallow=true tip object present
+  result status=OK sha equals input 2c64da66af8333085ebb7a3f36da862d92c1da4c
+
+TD-D1-04 PASS TAMPER_PIN_UNSET_OR_INVALID
+  inputs "", abc, 998784b3, main, HEAD, 24d558e all FAIL with no sha
+
+TD-D2-01 PASS
+  untracked gates/untracked.txt not in pin blobs or pin tree
+
+TD-D2-02 PASS PIN_SNAPSHOT_TREE_MISMATCH
+  pin ref not created
+
+TD-D2-03 PASS
+  sets_equal=true oid_and_sha256_equal=true method=git-archive
+
+TD-D2-04 PASS PIN_SNAPSHOT_TREE_MISMATCH
+  workspace-copytree rejected; isolation_bed.py has no copytree( call
+
+TD-D3-01 PASS CONFIG_DIGEST_INCOMPLETE
+  manifest={"parameters_canonical_sha256":"cff01a57e38b16af6bc5545789949575b1cbcc3078cdf5bf3158cee4b56fd884","policy_config_digest":"68eb1f1844aa24947f9e23a9f21fb1365c50ca85f9012f981c98aed8fbbdfcda","protection_settings_digest":"ab4096de1a460ec7696df488e8d92cf5623b116c190fdf84153bf9037fc0d99e","rule_version":"6.0.0"}
+  config_digest=2feb73d01b2a717b0219253967770ad2da094dd137b918c4a3a35e1dd27ff59a
+  independent hashlib digest matched
+  judge(cff hash) FAIL CONFIG_DIGEST_INCOMPLETE
+
+TD-D3-02 PASS
+  original 2feb73d01b2a717b0219253967770ad2da094dd137b918c4a3a35e1dd27ff59a
+  after protection_settings_digest change adda82572490db9419951d3a283d9db8cb119e88c942e676ff625fa5a65da359
+
+TD-D3-03 PASS
+  4332 bytes sha256 cff01a57e38b16af6bc5545789949575b1cbcc3078cdf5bf3158cee4b56fd884
+  worktree bytes equal HEAD blob
+
+TD-D3-04 PASS CONFIG_DIGEST_INCOMPLETE
+  rule_version removed
+
+TD-D4-01 PASS WORKFLOW_HEAD_UNPROVEN
+  metadata CLI exit 1
+  checkout_ref was the candidate sha while actual_head was the merge commit
+  pull_request CLI exit 1: workspace or checkout ref is the pull_request trigger object
+  prove_checkout(checkout_ref=refs/pull/12/merge, metadata_head_sha=candidate) proven=false
+
+TD-D4-02 PASS
+  explicit detached checkout
+  checkout_ref=998784b3e6cc0e6e6597cde76ce018331d924a72
+  actual_head=998784b3e6cc0e6e6597cde76ce018331d924a72
+  actual_tree=62fd51cb0b31eeed130007201cfd36bbca081c44
+  base_sha=24d558e193be6225aa2bb71bde3a75a2f7851b78
+  WORKFLOW_HEAD_PROVEN exit 0
+
+TD-D4-03 PASS
+  historical_ci_is_refreeze_evidence(41325626443)=false
+  historical_ci_is_refreeze_evidence(41329214806)=false
+  tester does not adopt either run as acceptance or re-freeze
+
+TD-D4-04 PASS WORKFLOW_HEAD_UNPROVEN
+  expected_tree=443f3a3bd72f92172f4f5e243fdaebfa429d90ac
+  actual_tree=62fd51cb0b31eeed130007201cfd36bbca081c44
+  proven=false
+
+TD-D4-05 PASS
+  candidate ci.yml product hits []
+  candidate ci.yml tester hits []
+  injected apt/sudo/sysctl/git merge/git rebase spec check FAIL
+
+REAL_ISO formal seal: not executed
+Cloud twin: not executed (would be TWIN_SUPPLEMENTARY only)
+Box path visible: false
+capability_gap: OPS_BED_BOX_LOCAL_ONLY, PIN_NOT_PREMATERIALIZED
+runtime_pass=false g4_refrozen=false merge=false

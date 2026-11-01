@@ -1,0 +1,27 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "git archive of build_candidate_sha matches gate_tree_sha and every blob oid+sha256; sets equal",
+  "g4_refrozen": false,
+  "id": "TD-D2-03",
+  "notes": "archive file set and ls-tree oid/sha256 recomputed outside the snapshot helper",
+  "observed": {
+    "blob_count": 2,
+    "expected_gate_tree": "475e09f9c830701826a769e64bae8d2933117260",
+    "gate_tree_sha": "475e09f9c830701826a769e64bae8d2933117260",
+    "method": "git-archive",
+    "oid_and_sha256_equal": true,
+    "roles": {
+      "build": "da2df2620f5fe81acaef7400ec3d08d37ef2eae3",
+      "land": "37985b8e45f4f3b25e59916bbd91d0029a184b57",
+      "pin": "d35a27076e5a99ad456255b057893b80586ea703",
+      "test_base": "3d2ded76da60e05f4babd8407355fe6d8d245f63"
+    },
+    "sets_equal": true,
+    "source_commit": "da2df2620f5fe81acaef7400ec3d08d37ef2eae3"
+  },
+  "reason_code": "MATCH",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

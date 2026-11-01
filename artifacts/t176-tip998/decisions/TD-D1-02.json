@@ -1,0 +1,25 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "shallow clone still missing after deepen/fetch \u2192 FAIL PIN_OBJECT_MISSING; do not return HEAD/tag/branch",
+  "g4_refrozen": false,
+  "id": "TD-D1-02",
+  "notes": "deepen/fetch against an empty origin left the object missing and did not return HEAD",
+  "observed": {
+    "head_after": "0df6263096361658cc4dbd1903c831d9f2dfc26b",
+    "head_before": "0df6263096361658cc4dbd1903c831d9f2dfc26b",
+    "parent": "2d946499a4f8162bf7f43b02bee5d46e2a812ab8",
+    "parent_present_after": false,
+    "refs_before": "0df6263096361658cc4dbd1903c831d9f2dfc26b refs/heads/master\n0df6263096361658cc4dbd1903c831d9f2dfc26b refs/remotes/origin/HEAD\n0df6263096361658cc4dbd1903c831d9f2dfc26b refs/remotes/origin/master",
+    "result": {
+      "reason_code": "PIN_OBJECT_MISSING",
+      "status": "FAIL"
+    },
+    "shallow": "true",
+    "tip": "0df6263096361658cc4dbd1903c831d9f2dfc26b"
+  },
+  "reason_code": "PIN_OBJECT_MISSING",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

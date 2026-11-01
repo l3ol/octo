@@ -1,0 +1,22 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "CI 41325626443 is not G4 re-freeze evidence",
+  "g4_refrozen": false,
+  "id": "TD-D4-03",
+  "notes": "41325626443 is not re-freeze evidence; 41329214806 success is context only",
+  "observed": {
+    "context_ci": "41329214806",
+    "context_ci_is_refreeze_evidence": false,
+    "historical_ci": "41325626443",
+    "historical_is_refreeze_evidence": false,
+    "module_G4_REFROZEN": false,
+    "module_RUNTIME_PASS": false,
+    "tester_adopts_context_ci_as_acceptance": false,
+    "tester_adopts_historical_ci": false
+  },
+  "reason_code": "NOT_REFREEZE_EVIDENCE",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}

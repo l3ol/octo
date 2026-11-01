@@ -1,0 +1,32 @@
+{
+  "acceptance": false,
+  "case_result": "PASS",
+  "error": null,
+  "expectation": "workflow text that adds apt/sudo/sysctl or git merge/rebase fails the spec check",
+  "g4_refrozen": false,
+  "id": "TD-D4-05",
+  "notes": "candidate ci.yml has no apt/sudo/sysctl/git merge/git rebase; injected additions fail the spec check",
+  "observed": {
+    "candidate_has_explicit_ref_and_proof": true,
+    "candidate_product_hits": [],
+    "candidate_tester_hits": [],
+    "injected_product_hits": [
+      "\\bapt(-get)?\\b",
+      "\\bsudo\\b",
+      "\\bsysctl\\b",
+      "\\bgit\\s+merge\\b",
+      "\\bgit\\s+rebase\\b"
+    ],
+    "injected_spec_check": "FAIL",
+    "injected_tester_hits": [
+      "apt",
+      "sudo",
+      "sysctl",
+      "git_merge",
+      "git_rebase"
+    ]
+  },
+  "reason_code": "SPEC_CHECK_FAIL_ON_INJECTED",
+  "runtime_pass": false,
+  "stack_ok_is_not_pass": true
+}
