@@ -1,0 +1,39 @@
+{
+  "kind": "tester_decision",
+  "id": "group-N10",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group N10. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "N10-FIXED",
+      "group": "N10",
+      "verdict": "MATCH",
+      "expected": "fixed file bytes: two executions share one SUCCEEDED effect and the same content summary",
+      "actual": "first=SUCCEEDED second=SUCCEEDED same_receipt=True dispatch=1 sha=023ec624a31bb54fb5018eabfb1e72d2583177e19de5e8287809d7ee5b4188f6 summary={'bytes': 11, 'sha256': '023ec624a31bb54fb5018eabfb1e72d2583177e19de5e8287809d7ee5b4188f6'}"
+    },
+    {
+      "id": "N10-CHANGED",
+      "group": "N10",
+      "verdict": "MATCH",
+      "expected": "changed file bytes change the content summary",
+      "actual": "state=SUCCEEDED sha=96ff299e658dcedeaf95f703d5493ef534cfaa5e1bc4db43d4cd74a47cf8787d expected=96ff299e658dcedeaf95f703d5493ef534cfaa5e1bc4db43d4cd74a47cf8787d"
+    },
+    {
+      "id": "N10-NO-AUTH",
+      "group": "N10",
+      "verdict": "MATCH",
+      "expected": "no grant does not SUCCEEDED and does not dispatch",
+      "actual": "status=AUTHORIZATION_REQUIRED output=None dispatch=0 effects=0"
+    }
+  ]
+}

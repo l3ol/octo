@@ -1,0 +1,147 @@
+{
+  "kind": "tester_decision",
+  "id": "group-n11",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group n11. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "N11-TO-01b",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "unconfigured root is BLOCKED ROOT_UNAVAILABLE",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False"
+    },
+    {
+      "id": "N11-TO-01b-writable",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "a writable root is ROOT_UNAVAILABLE and does not return the file body",
+      "actual": "Empty ROOT_UNAVAILABLE"
+    },
+    {
+      "id": "N11-ROOT-IN-CANDIDATE",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "a root inside the candidate tree is ROOT_UNAVAILABLE",
+      "actual": "Empty ROOT_UNAVAILABLE"
+    },
+    {
+      "id": "N11-FORMAL-OK",
+      "group": "n11",
+      "verdict": "OPEN",
+      "expected": "a real verified REVIEW_RECEIPT PASS is not available; GAP-01 and GAP-03 stay OPEN",
+      "actual": "Rejected EVIDENCE_UNVERIFIED",
+      "note": "Code returns EVIDENCE_UNVERIFIED for every REVIEW_RECEIPT. That refuses an unverified original. It does not close GAP-03 and it is not N11 complete."
+    },
+    {
+      "id": "N11-TO-06-route",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "changed route is TUPLE_MISMATCH",
+      "actual": "Rejected TUPLE_MISMATCH"
+    },
+    {
+      "id": "N11-TO-06f-short",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "short SHA does not normalize to a tuple and does not hit",
+      "actual": "Rejected TUPLE_MISMATCH"
+    },
+    {
+      "id": "N11-TO-06f-upper",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "uppercase hex normalizes and can hit the TEST_FIXTURE row; still test_only",
+      "actual": "Found test_only=True kind=TEST_FIXTURE verdict=PASS"
+    },
+    {
+      "id": "N11-TO-09",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "bytes_sha256 in the fixture set is FIXTURE_LOOP",
+      "actual": "Rejected FIXTURE_LOOP"
+    },
+    {
+      "id": "N11-TO-11",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "changed raw bytes are HASH_MISMATCH",
+      "actual": "Rejected HASH_MISMATCH"
+    },
+    {
+      "id": "N11-TO-14",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "two records for one tuple are AMBIGUOUS",
+      "actual": "Rejected AMBIGUOUS"
+    },
+    {
+      "id": "N11-TO-08",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "consuming a TEST_FIXTURE does not change closing.py; this is not a real PASS",
+      "actual": "sha_before=4578e7b3bfbcae3cae4e99fe5e9a98752b84afa5b8e9b0705bddfddd9599931e sha_after=4578e7b3bfbcae3cae4e99fe5e9a98752b84afa5b8e9b0705bddfddd9599931e",
+      "note": "GAP-01 remains. TEST_FIXTURE is not the original."
+    },
+    {
+      "id": "N11-TO-02",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "self-written file plus public reviewer id is BLOCKED",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False"
+    },
+    {
+      "id": "N11-TO-03",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "builder_signed is BLOCKED BUILDER_PASS_FORBIDDEN",
+      "actual": "status=BLOCKED verdict=BLOCKED note=BUILDER_PASS_FORBIDDEN runtime_pass_field=False"
+    },
+    {
+      "id": "N11-TO-04",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "candidate self-report is BLOCKED",
+      "actual": "status=BLOCKED verdict=BLOCKED note=candidate self-report is not a TA reviewer receipt runtime_pass_field=False"
+    },
+    {
+      "id": "N11-TO-05",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "wrong issuer is BLOCKED forged",
+      "actual": "status=BLOCKED verdict=BLOCKED note=forged issuer runtime_pass_field=False"
+    },
+    {
+      "id": "N11-TO-15",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "with no registry, _verified_original is None; with a TEST_FIXTURE registry it is not None and stays test_only",
+      "actual": "no_registry=None with_fixture=Found test_only=True kind=TEST_FIXTURE verdict=PASS"
+    },
+    {
+      "id": "N11-TO-16",
+      "group": "n11",
+      "verdict": "OPEN",
+      "expected": "a non-fixture FAIL verdict cannot become a formal PASS while GAP-03 is open",
+      "actual": "Rejected EVIDENCE_UNVERIFIED",
+      "note": "Observed rejection is EVIDENCE_UNVERIFIED before verdict forwarding. Formal REVISE/BLOCKED passthrough stays OPEN."
+    },
+    {
+      "id": "N11-TO-10",
+      "group": "n11",
+      "verdict": "MATCH",
+      "expected": "candidate registration_id / path does not grant trust; fixture hit stays TEST_FIXTURE_ONLY",
+      "actual": "status=BLOCKED verdict=BLOCKED note=TEST_FIXTURE_ONLY runtime_pass_field=False"
+    }
+  ]
+}

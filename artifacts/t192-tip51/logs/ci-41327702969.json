@@ -1,0 +1,15 @@
+{
+  "role": "context_only",
+  "acceptance": false,
+  "runtime_pass": false,
+  "note": "CI success and head_sha match are not a product PASS and are not STACK_OK acceptance.",
+  "run_id": "41327702969",
+  "url": "https://github.com/l3ol/octo/actions/runs/41327702969",
+  "status": "completed",
+  "conclusion": "success",
+  "headSha": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+  "headBranch": "cursor/g2-s1-t04-router-6581",
+  "displayTitle": "G2 S1: Standard node pipeline and CI verification",
+  "queried_by": "gh run view 41327702969 --repo l3ol/octo",
+  "head_sha_equals_tip": true
+}

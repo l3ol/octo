@@ -1,0 +1,133 @@
+{
+  "kind": "tester_decision",
+  "id": "group-t187",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group t187. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "NA-RO-03",
+      "group": "t187",
+      "verdict": "PASS_EVIDENCE",
+      "expected": "tip51 Ops bwrap --ro-bind: index open/replace/unlink/rename all OSError; sha unchanged; not tip047",
+      "actual": "ops=open_w:EROFS/30,os.replace:EXDEV/18,os.unlink:EROFS/30,os.rename:EROFS/30 sha_unchanged=True ST_RDONLY=True replace_EXDEV=True reexecuted_here=false box_mount_present=False",
+      "note": "os.replace errno is EXDEV/18 (cross-device), not EROFS. open/unlink/rename are EROFS/30. sha256 unchanged. This VM did not re-run bwrap."
+    },
+    {
+      "id": "NA-RO-04",
+      "group": "t187",
+      "verdict": "PASS_EVIDENCE",
+      "expected": "same ro-bind writes against fixture original all OSError; sha unchanged; fixture not a formal original",
+      "actual": "ops=open_w:EROFS/30,os.replace:EXDEV/18,os.unlink:EROFS/30,os.rename:EROFS/30 fixture_registered_in_production=False sha_before=8ed407dc826fc62b23cbfce83d5c1839c2a69e20a322d3d294fcd96efaca73f8",
+      "note": "Fixture file only. Production registry records stay []. EXDEV on os.replace disclosed."
+    },
+    {
+      "id": "NA-RO-01",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "chmod a-w without ro-bind is RO_BIND_UNPROVEN and is not hard-isolation PASS",
+      "actual": "ro_bind_assessment(chmod)=RO_BIND_UNPROVEN os.access_W_OK=False local_ST_RDONLY=False"
+    },
+    {
+      "id": "NA-RO-02",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "os.access W_OK false alone is RO_BIND_UNPROVEN",
+      "actual": "assessment=RO_BIND_UNPROVEN access_false=True"
+    },
+    {
+      "id": "NA-IS-01",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "Rejected/Empty ISSUER_SESSION_COLLISION; content not returned",
+      "actual": "Rejected ISSUER_SESSION_COLLISION"
+    },
+    {
+      "id": "NA-IS-02",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "Rejected/Empty ISSUER_MISMATCH; content not returned",
+      "actual": "Rejected ISSUER_MISMATCH"
+    },
+    {
+      "id": "NA-IS-03",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "Rejected/Empty ISSUER_MISMATCH; content not returned",
+      "actual": "Rejected ISSUER_MISMATCH"
+    },
+    {
+      "id": "NA-IS-04",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "correct issuer and session: shape may pass; formal trust is not PASS",
+      "actual": "consume=Found test_only=True kind=TEST_FIXTURE verdict=PASS n11=status=BLOCKED verdict=BLOCKED note=TEST_FIXTURE_ONLY runtime_pass_field=False"
+    },
+    {
+      "id": "NA-TF-01",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "TEST_FIXTURE hit is BLOCKED + TEST_FIXTURE_ONLY and is not a formal original",
+      "actual": "status=BLOCKED verdict=BLOCKED note=TEST_FIXTURE_ONLY runtime_pass_field=False"
+    },
+    {
+      "id": "NA-RG-01",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "registry.json symlink to outside is PATH_ESCAPE or ROOT_UNAVAILABLE and yields no content",
+      "actual": "Empty PATH_ESCAPE"
+    },
+    {
+      "id": "NA-RG-02",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "absolute path, .., and an intermediate symlink are PATH_ESCAPE and yield no content",
+      "actual": "dotdot=Rejected PATH_ESCAPE absolute=Rejected PATH_ESCAPE middle=Rejected PATH_ESCAPE"
+    },
+    {
+      "id": "NA-RG-03",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "open_registry reads registry.json through _read_confined; bare read_text is absent",
+      "actual": "confined=True naive_whole_file_scan=REGISTRY_INDEX_UNCONFINED",
+      "note": "A whole-file scan of trusted_original.py sees the word read_text inside registry_index_review. That scan is not the open_registry check."
+    },
+    {
+      "id": "NA-TF-02",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "empty registry is EMPTY_REGISTRY and N11 BLOCKED, not PASS",
+      "actual": "open=ReadOnlyRegistry:{} consume=Empty EMPTY_REGISTRY n11=status=BLOCKED verdict=BLOCKED note=EMPTY_REGISTRY no trusted reviewer registration runtime_pass_field=False"
+    },
+    {
+      "id": "NA-TF-03",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "forged REVIEW_RECEIPT / nonempty string is EVIDENCE_UNVERIFIED or BLOCKED and is not formal trust",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False"
+    },
+    {
+      "id": "SOURCE-EVIDENCE-NONEMPTY",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "nonempty source_evidence on a REVIEW_RECEIPT is not independent verification",
+      "actual": "Rejected EVIDENCE_UNVERIFIED"
+    },
+    {
+      "id": "NA-GAP-01",
+      "group": "t187",
+      "verdict": "MATCH",
+      "expected": "this handback must not claim N11 complete or GAP-01..04 closed",
+      "actual": "not claimed; gaps recorded OPEN; tip047 seal not applied"
+    }
+  ]
+}

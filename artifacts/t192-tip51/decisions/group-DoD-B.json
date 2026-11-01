@@ -1,0 +1,95 @@
+{
+  "kind": "tester_decision",
+  "id": "group-DoD-B",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group DoD-B. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "DOD-B-N11-OVERALL",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "no trusted original: N11 BLOCKED and run_standard body status is not OK",
+      "actual": "body=BLOCKED n11=BLOCKED/BLOCKED ids=['N1', 'N2', 'N3', 'N4', 'N5', 'N8', 'N9', 'N10', 'N11', 'N12', 'N13']"
+    },
+    {
+      "id": "DOD-B-N10-PACK",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "N10 context_pack is that run's N2 seven-field pack",
+      "actual": "equal=True keys=['assembled_at', 'current_decisions', 'intent_id', 'key_evidence', 'open_states', 'prohibitions', 'sources']"
+    },
+    {
+      "id": "DOD-B-INTENT",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "N1 and N2 share one intent id on this run",
+      "actual": "n1=intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01 n2=intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01"
+    },
+    {
+      "id": "DOD-B-N1-STOP",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "N1 NEEDS_CLARIFICATION stops the prefix",
+      "actual": "status=NEEDS_CLARIFICATION ids=['N1']"
+    },
+    {
+      "id": "DOD-B-FOREIGN-INTENT",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "a foreign N2 intent stops the chain",
+      "actual": "status=BLOCKED ids=['N1']"
+    },
+    {
+      "id": "DOD-B-N2-PARTIAL-READONLY",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "N2 PARTIAL on internal_readonly may continue and the body stays PARTIAL",
+      "actual": "status=PARTIAL n2=PARTIAL readonly=True ids=['N1', 'N2', 'N3', 'N4', 'N5', 'N8']"
+    },
+    {
+      "id": "DOD-B-PARTIAL-CONSEQUENTIAL",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "a non-readonly action does not run the prefix; the PARTIAL guard rejects a consequential action",
+      "actual": "route_status=BLOCKED ids=[] guard_raised=True"
+    },
+    {
+      "id": "DOD-B-N3-STOP",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "N3 still_worth_it false stops before N4 and body is not OK",
+      "actual": "status=BLOCKED ids=['N1', 'N2', 'N3'] worth=False"
+    },
+    {
+      "id": "DOD-B-N5-STOP",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "N5 with an unadjudicated claim is PARTIAL and stops before N8",
+      "actual": "status=PARTIAL ids=['N1', 'N2', 'N3', 'N4', 'N5'] fact=CLAIM"
+    },
+    {
+      "id": "DOD-B-N8-STOP",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "N8 'works well' is NEEDS_CLARIFICATION and stops before N9",
+      "actual": "status=NEEDS_CLARIFICATION ids=['N1', 'N2', 'N3', 'N4', 'N5', 'N8']"
+    },
+    {
+      "id": "DOD-V11-OVERALL",
+      "group": "DoD-B",
+      "verdict": "MATCH",
+      "expected": "N2 PARTIAL may continue read-only; N11 BLOCKED makes run_standard overall not OK",
+      "actual": "body=BLOCKED n2=PARTIAL n11=BLOCKED"
+    }
+  ]
+}

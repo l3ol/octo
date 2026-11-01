@@ -1,0 +1,32 @@
+{
+  "kind": "tester_decision",
+  "id": "group-DoD-D",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group DoD-D. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "DOD-D-LINKS",
+      "group": "DoD-D",
+      "verdict": "MATCH",
+      "expected": "evidence_links are openable capture paths or recomputable sha256 pointers, not status strings",
+      "actual": "links=['capture/Receipt-R-5f8c75f37ab242a19b15df0ec5b59bf7.json', 'sha256:819e9b6c45deaf2d614159386e08b7589d1b3a40cd6fa52cc564aeddb0cb1cf4', 'sha256:f87015b551cb92b8fcc80a60a4007d5611585344390d095bf75ae97b58ef1ab6', 'sha256:e09392bdd4409c736c4611675295c92a8ba3378383672c382dae26955cde55db', 'sha256:c19353e50cb3e1eb6bc652d669e6187e9e765b17be5b8a50e11ee699dcc55995'] recomputed_present=True paths_exist=True"
+    },
+    {
+      "id": "DOD-D-WRITEBACK-SPLIT",
+      "group": "DoD-D",
+      "verdict": "MATCH",
+      "expected": "writeback FAILED is not reported as SUCCEEDED or envelope OK",
+      "actual": "state=BLOCKED status=BLOCKED owner=builder next=repair-writeback"
+    }
+  ]
+}

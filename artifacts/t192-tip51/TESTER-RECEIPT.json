@@ -1,0 +1,67 @@
+{
+  "receipt_id": "T192-TIP51-TESTER-2026-11-01",
+  "role": "evidence-only Octo Tester",
+  "at": "2026-11-01T16:55:21Z",
+  "状态": "T192_TIP51_EVIDENCED_PARTIAL",
+  "结果": "DoD A-E and D4 contrasts, t187 negatives, N10 contrast, and A2 mechanism checks held. NA-RO-03/04 are PASS evidence from the tip51 Ops bed. Local bwrap is CAPABILITY_GAP. GAP-01..04 stay OPEN. No product PASS.",
+  "证据": "artifacts/t192-tip51/logs/ and TC-MATRIX.json",
+  "Receipt": "This object records evidence. It does not grant trust.",
+  "candidate": {
+    "tip": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "tip047": "047923c15755e381697af699c7859b5df5d23eeb",
+  "tip047_sealed": false,
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "n11_complete": false,
+  "stack_ok_is_not_pass": true,
+  "ci_is_not_pass": true,
+  "pytest_is_not_pass": true,
+  "xfail_is_not_pass": true,
+  "waiting_ops_tip51": "CLEARED",
+  "na_ro_03": "PASS_EVIDENCE",
+  "na_ro_04": "PASS_EVIDENCE",
+  "na_ro_bed": "tip51",
+  "na_ro_not_tip047": true,
+  "na_ro_reexecuted_on_this_vm": false,
+  "na_ro_replace_errno": "EXDEV/18",
+  "na_ro_open_unlink_rename_errno": "EROFS/30",
+  "bwrap_local": "CAPABILITY_GAP",
+  "bwrap_error": "BWRAP_MISSING",
+  "gaps": {
+    "GAP-01": "OPEN",
+    "GAP-02": "OPEN",
+    "GAP-03": "OPEN",
+    "GAP-04": "OPEN"
+  },
+  "also_open": [
+    "RO-BIND-ASSESSMENT-CODE",
+    "N11-FORMAL-OK",
+    "N11-TO-16",
+    "A2-TIP51-INVENTORY",
+    "A2-HANDOFF-SNAPSHOT"
+  ],
+  "counts": {
+    "MATCH": 71,
+    "PASS": 6,
+    "PASS_EVIDENCE": 2,
+    "CLEARED": 1,
+    "OPEN": 9,
+    "CAPABILITY_GAP": 1,
+    "CONTEXT": 1
+  },
+  "fail_ids": [],
+  "ops_proof_sha256": "21700f5fa8851659654b740976043b13023eea836569a2dd5f1a550337cf305f",
+  "ops_receipt_md_sha256": "0c33e6ced12fb9bb380091266994f571d11a6d984123ddf59395dda054743721",
+  "ops_receipt_json_sha256": "dbb67fb8213f6c217bef6dec1e8cf012d7ab16ede305095974e10707735e8607",
+  "ci_context": {
+    "run_id": "41327702969",
+    "conclusion": "success",
+    "headSha": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "acceptance": false
+  }
+}

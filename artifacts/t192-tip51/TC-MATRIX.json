@@ -1,0 +1,889 @@
+{
+  "summary": {
+    "status": "T192_TIP51_EVIDENCED_PARTIAL",
+    "runtime_pass": false,
+    "verification_pass": false,
+    "product_pass": false,
+    "merge": false,
+    "tip047_sealed": false,
+    "stack_ok_is_not_pass": true,
+    "ci_is_not_pass": true,
+    "n11_complete": false,
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc",
+    "pin_ok": true,
+    "counts": {
+      "MATCH": 71,
+      "PASS_EVIDENCE": 2,
+      "CLEARED": 1,
+      "OPEN": 9,
+      "CAPABILITY_GAP": 1,
+      "PASS": 6,
+      "CONTEXT": 1
+    },
+    "fail_ids": [],
+    "open_ids": [
+      "RO-BIND-ASSESSMENT-CODE",
+      "N11-FORMAL-OK",
+      "N11-TO-16",
+      "A2-TIP51-INVENTORY",
+      "A2-HANDOFF-SNAPSHOT",
+      "GAP-01",
+      "GAP-02",
+      "GAP-03",
+      "GAP-04"
+    ],
+    "pytest_exit": 0,
+    "pytest_is_not_acceptance": true,
+    "bwrap_local": "CAPABILITY_GAP",
+    "na_ro_03_04": "PASS_EVIDENCE",
+    "waiting_ops_tip51": "CLEARED"
+  },
+  "rows": [
+    {
+      "id": "PIN-HEAD-TREE-PARENT",
+      "group": "pin",
+      "expected": "HEAD 51a23ccd… tree babde0c3… parent 875836d5…",
+      "actual": "HEAD=51a23ccd4f9efe7bafc759703997b01eccb04e13 tree=babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c parent=875836d57cf1f557bb71fc094025f72a084f44dc",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-RO-03",
+      "group": "t187",
+      "expected": "tip51 Ops bwrap --ro-bind: index open/replace/unlink/rename all OSError; sha unchanged; not tip047",
+      "actual": "ops=open_w:EROFS/30,os.replace:EXDEV/18,os.unlink:EROFS/30,os.rename:EROFS/30 sha_unchanged=True ST_RDONLY=True replace_EXDEV=True reexecuted_here=false box_mount_present=False",
+      "verdict": "PASS_EVIDENCE",
+      "product_pass": false,
+      "runtime_pass": false,
+      "bed": "tip51",
+      "not_tip047": true,
+      "fixture_physical_ro_only": true,
+      "gap04": "OPEN",
+      "note": "os.replace errno is EXDEV/18 (cross-device), not EROFS. open/unlink/rename are EROFS/30. sha256 unchanged. This VM did not re-run bwrap."
+    },
+    {
+      "id": "NA-RO-04",
+      "group": "t187",
+      "expected": "same ro-bind writes against fixture original all OSError; sha unchanged; fixture not a formal original",
+      "actual": "ops=open_w:EROFS/30,os.replace:EXDEV/18,os.unlink:EROFS/30,os.rename:EROFS/30 fixture_registered_in_production=False sha_before=8ed407dc826fc62b23cbfce83d5c1839c2a69e20a322d3d294fcd96efaca73f8",
+      "verdict": "PASS_EVIDENCE",
+      "product_pass": false,
+      "runtime_pass": false,
+      "bed": "tip51",
+      "not_tip047": true,
+      "fixture_physical_ro_only": true,
+      "gap04": "OPEN",
+      "note": "Fixture file only. Production registry records stay []. EXDEV on os.replace disclosed."
+    },
+    {
+      "id": "OPS-TIP51-PIN",
+      "group": "ops",
+      "expected": "proof and receipt pin this HEAD/tree/parent and intake b98f5a5c; hashes match the stated digests",
+      "actual": "hash_match=True pin_match=True proof=21700f5fa8851659654b740976043b13023eea836569a2dd5f1a550337cf305f md=0c33e6ced12fb9bb380091266994f571d11a6d984123ddf59395dda054743721 json=dbb67fb8213f6c217bef6dec1e8cf012d7ab16ede305095974e10707735e8607",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "WAITING_OPS_TIP51",
+      "group": "ops",
+      "expected": "cleared because tip51 Ops bed is hash-matched; tip047 bed is not a substitute and was not used",
+      "actual": "CLEARED",
+      "verdict": "CLEARED",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-RO-01",
+      "group": "t187",
+      "expected": "chmod a-w without ro-bind is RO_BIND_UNPROVEN and is not hard-isolation PASS",
+      "actual": "ro_bind_assessment(chmod)=RO_BIND_UNPROVEN os.access_W_OK=False local_ST_RDONLY=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-RO-02",
+      "group": "t187",
+      "expected": "os.access W_OK false alone is RO_BIND_UNPROVEN",
+      "actual": "assessment=RO_BIND_UNPROVEN access_false=True",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "RO-BIND-ASSESSMENT-CODE",
+      "group": "ops",
+      "expected": "candidate ro_bind_assessment does not consume the Ops proof and does not close GAP-04",
+      "actual": "assessment_of_bwrap_dict=RO_BIND_UNPROVEN",
+      "verdict": "OPEN",
+      "product_pass": false,
+      "runtime_pass": false,
+      "gap": "GAP-04"
+    },
+    {
+      "id": "NA-IS-01",
+      "group": "t187",
+      "expected": "Rejected/Empty ISSUER_SESSION_COLLISION; content not returned",
+      "actual": "Rejected ISSUER_SESSION_COLLISION",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-IS-02",
+      "group": "t187",
+      "expected": "Rejected/Empty ISSUER_MISMATCH; content not returned",
+      "actual": "Rejected ISSUER_MISMATCH",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-IS-03",
+      "group": "t187",
+      "expected": "Rejected/Empty ISSUER_MISMATCH; content not returned",
+      "actual": "Rejected ISSUER_MISMATCH",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-IS-04",
+      "group": "t187",
+      "expected": "correct issuer and session: shape may pass; formal trust is not PASS",
+      "actual": "consume=Found test_only=True kind=TEST_FIXTURE verdict=PASS n11=status=BLOCKED verdict=BLOCKED note=TEST_FIXTURE_ONLY runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-TF-01",
+      "group": "t187",
+      "expected": "TEST_FIXTURE hit is BLOCKED + TEST_FIXTURE_ONLY and is not a formal original",
+      "actual": "status=BLOCKED verdict=BLOCKED note=TEST_FIXTURE_ONLY runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-RG-01",
+      "group": "t187",
+      "expected": "registry.json symlink to outside is PATH_ESCAPE or ROOT_UNAVAILABLE and yields no content",
+      "actual": "Empty PATH_ESCAPE",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-RG-02",
+      "group": "t187",
+      "expected": "absolute path, .., and an intermediate symlink are PATH_ESCAPE and yield no content",
+      "actual": "dotdot=Rejected PATH_ESCAPE absolute=Rejected PATH_ESCAPE middle=Rejected PATH_ESCAPE",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-RG-03",
+      "group": "t187",
+      "expected": "open_registry reads registry.json through _read_confined; bare read_text is absent",
+      "actual": "confined=True naive_whole_file_scan=REGISTRY_INDEX_UNCONFINED",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false,
+      "note": "A whole-file scan of trusted_original.py sees the word read_text inside registry_index_review. That scan is not the open_registry check."
+    },
+    {
+      "id": "NA-TF-02",
+      "group": "t187",
+      "expected": "empty registry is EMPTY_REGISTRY and N11 BLOCKED, not PASS",
+      "actual": "open=ReadOnlyRegistry:{} consume=Empty EMPTY_REGISTRY n11=status=BLOCKED verdict=BLOCKED note=EMPTY_REGISTRY no trusted reviewer registration runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-01b",
+      "group": "n11",
+      "expected": "unconfigured root is BLOCKED ROOT_UNAVAILABLE",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-01b-writable",
+      "group": "n11",
+      "expected": "a writable root is ROOT_UNAVAILABLE and does not return the file body",
+      "actual": "Empty ROOT_UNAVAILABLE",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-ROOT-IN-CANDIDATE",
+      "group": "n11",
+      "expected": "a root inside the candidate tree is ROOT_UNAVAILABLE",
+      "actual": "Empty ROOT_UNAVAILABLE",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-TF-03",
+      "group": "t187",
+      "expected": "forged REVIEW_RECEIPT / nonempty string is EVIDENCE_UNVERIFIED or BLOCKED and is not formal trust",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "SOURCE-EVIDENCE-NONEMPTY",
+      "group": "t187",
+      "expected": "nonempty source_evidence on a REVIEW_RECEIPT is not independent verification",
+      "actual": "Rejected EVIDENCE_UNVERIFIED",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false,
+      "gap": "GAP-03"
+    },
+    {
+      "id": "N11-FORMAL-OK",
+      "group": "n11",
+      "expected": "a real verified REVIEW_RECEIPT PASS is not available; GAP-01 and GAP-03 stay OPEN",
+      "actual": "Rejected EVIDENCE_UNVERIFIED",
+      "verdict": "OPEN",
+      "product_pass": false,
+      "runtime_pass": false,
+      "gap": "GAP-01,GAP-03",
+      "note": "Code returns EVIDENCE_UNVERIFIED for every REVIEW_RECEIPT. That refuses an unverified original. It does not close GAP-03 and it is not N11 complete."
+    },
+    {
+      "id": "N11-TO-06-route",
+      "group": "n11",
+      "expected": "changed route is TUPLE_MISMATCH",
+      "actual": "Rejected TUPLE_MISMATCH",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-06f-short",
+      "group": "n11",
+      "expected": "short SHA does not normalize to a tuple and does not hit",
+      "actual": "Rejected TUPLE_MISMATCH",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-06f-upper",
+      "group": "n11",
+      "expected": "uppercase hex normalizes and can hit the TEST_FIXTURE row; still test_only",
+      "actual": "Found test_only=True kind=TEST_FIXTURE verdict=PASS",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-09",
+      "group": "n11",
+      "expected": "bytes_sha256 in the fixture set is FIXTURE_LOOP",
+      "actual": "Rejected FIXTURE_LOOP",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-11",
+      "group": "n11",
+      "expected": "changed raw bytes are HASH_MISMATCH",
+      "actual": "Rejected HASH_MISMATCH",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-14",
+      "group": "n11",
+      "expected": "two records for one tuple are AMBIGUOUS",
+      "actual": "Rejected AMBIGUOUS",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-08",
+      "group": "n11",
+      "expected": "consuming a TEST_FIXTURE does not change closing.py; this is not a real PASS",
+      "actual": "sha_before=4578e7b3bfbcae3cae4e99fe5e9a98752b84afa5b8e9b0705bddfddd9599931e sha_after=4578e7b3bfbcae3cae4e99fe5e9a98752b84afa5b8e9b0705bddfddd9599931e",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false,
+      "note": "GAP-01 remains. TEST_FIXTURE is not the original."
+    },
+    {
+      "id": "N11-TO-02",
+      "group": "n11",
+      "expected": "self-written file plus public reviewer id is BLOCKED",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-03",
+      "group": "n11",
+      "expected": "builder_signed is BLOCKED BUILDER_PASS_FORBIDDEN",
+      "actual": "status=BLOCKED verdict=BLOCKED note=BUILDER_PASS_FORBIDDEN runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-04",
+      "group": "n11",
+      "expected": "candidate self-report is BLOCKED",
+      "actual": "status=BLOCKED verdict=BLOCKED note=candidate self-report is not a TA reviewer receipt runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-05",
+      "group": "n11",
+      "expected": "wrong issuer is BLOCKED forged",
+      "actual": "status=BLOCKED verdict=BLOCKED note=forged issuer runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-A-UNTRUSTED-REVISE",
+      "group": "DoD-A",
+      "expected": "an untrusted REVISE dict is not a formal opinion and is not raised to PASS",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-A-UNTRUSTED-BLOCKED",
+      "group": "DoD-A",
+      "expected": "an untrusted BLOCKED dict is not raised to PASS",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-A-EMPTY-PROOF",
+      "group": "DoD-A",
+      "expected": "sha-only empty proof is BLOCKED",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-A-BUILDER-FLAG",
+      "group": "DoD-A",
+      "expected": "builder_claims_pass raises BUILDER_PASS_FORBIDDEN",
+      "actual": "BUILDER_PASS_FORBIDDEN",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-15",
+      "group": "n11",
+      "expected": "with no registry, _verified_original is None; with a TEST_FIXTURE registry it is not None and stays test_only",
+      "actual": "no_registry=None with_fixture=Found test_only=True kind=TEST_FIXTURE verdict=PASS",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N11-TO-16",
+      "group": "n11",
+      "expected": "a non-fixture FAIL verdict cannot become a formal PASS while GAP-03 is open",
+      "actual": "Rejected EVIDENCE_UNVERIFIED",
+      "verdict": "OPEN",
+      "product_pass": false,
+      "runtime_pass": false,
+      "gap": "GAP-03",
+      "note": "Observed rejection is EVIDENCE_UNVERIFIED before verdict forwarding. Formal REVISE/BLOCKED passthrough stays OPEN."
+    },
+    {
+      "id": "N11-TO-10",
+      "group": "n11",
+      "expected": "candidate registration_id / path does not grant trust; fixture hit stays TEST_FIXTURE_ONLY",
+      "actual": "status=BLOCKED verdict=BLOCKED note=TEST_FIXTURE_ONLY runtime_pass_field=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-B-N11-OVERALL",
+      "group": "DoD-B",
+      "expected": "no trusted original: N11 BLOCKED and run_standard body status is not OK",
+      "actual": "body=BLOCKED n11=BLOCKED/BLOCKED ids=['N1', 'N2', 'N3', 'N4', 'N5', 'N8', 'N9', 'N10', 'N11', 'N12', 'N13']",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-B-N10-PACK",
+      "group": "DoD-B",
+      "expected": "N10 context_pack is that run's N2 seven-field pack",
+      "actual": "equal=True keys=['assembled_at', 'current_decisions', 'intent_id', 'key_evidence', 'open_states', 'prohibitions', 'sources']",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-B-INTENT",
+      "group": "DoD-B",
+      "expected": "N1 and N2 share one intent id on this run",
+      "actual": "n1=intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01 n2=intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-B-N1-STOP",
+      "group": "DoD-B",
+      "expected": "N1 NEEDS_CLARIFICATION stops the prefix",
+      "actual": "status=NEEDS_CLARIFICATION ids=['N1']",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-B-FOREIGN-INTENT",
+      "group": "DoD-B",
+      "expected": "a foreign N2 intent stops the chain",
+      "actual": "status=BLOCKED ids=['N1']",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-B-N2-PARTIAL-READONLY",
+      "group": "DoD-B",
+      "expected": "N2 PARTIAL on internal_readonly may continue and the body stays PARTIAL",
+      "actual": "status=PARTIAL n2=PARTIAL readonly=True ids=['N1', 'N2', 'N3', 'N4', 'N5', 'N8']",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-B-PARTIAL-CONSEQUENTIAL",
+      "group": "DoD-B",
+      "expected": "a non-readonly action does not run the prefix; the PARTIAL guard rejects a consequential action",
+      "actual": "route_status=BLOCKED ids=[] guard_raised=True",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-B-N3-STOP",
+      "group": "DoD-B",
+      "expected": "N3 still_worth_it false stops before N4 and body is not OK",
+      "actual": "status=BLOCKED ids=['N1', 'N2', 'N3'] worth=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-B-N5-STOP",
+      "group": "DoD-B",
+      "expected": "N5 with an unadjudicated claim is PARTIAL and stops before N8",
+      "actual": "status=PARTIAL ids=['N1', 'N2', 'N3', 'N4', 'N5'] fact=CLAIM",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-B-N8-STOP",
+      "group": "DoD-B",
+      "expected": "N8 'works well' is NEEDS_CLARIFICATION and stops before N9",
+      "actual": "status=NEEDS_CLARIFICATION ids=['N1', 'N2', 'N3', 'N4', 'N5', 'N8']",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-V11-OVERALL",
+      "group": "DoD-B",
+      "expected": "N2 PARTIAL may continue read-only; N11 BLOCKED makes run_standard overall not OK",
+      "actual": "body=BLOCKED n2=PARTIAL n11=BLOCKED",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-C-OBJECTS",
+      "group": "DoD-C",
+      "expected": "written objects are only Decision, Evidence, Receipt; failure row is a Receipt; path opens from store_root; sha matches",
+      "actual": "objects=['Receipt', 'Decision', 'Decision', 'Evidence', 'Receipt'] paths_open=[True, True, True, True, True] sha_ok=True link=capture/Decision-d0.json link_ok=True",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-C-IDEMPOTENT",
+      "group": "DoD-C",
+      "expected": "same Receipt content is returned again and does not raise SUPERSEDE_OVERWRITE",
+      "actual": "second_sha=ccb6fdb3f49b87cd7d5c38885e01efaf6ef85b2cdd11d0d2443fae5070e6ad90 same_bytes=True",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-C-CONFLICT",
+      "group": "DoD-C",
+      "expected": "conflicting content raises CONTENT_CONFLICT and leaves the old bytes in place",
+      "actual": "CONTENT_CONFLICT:capture/Receipt-r1.json bytes_unchanged=True",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-H1",
+      "group": "DoD-D4",
+      "expected": "N12 writeback failure makes N13 writeback_state FAILED and body is not OK",
+      "actual": "n12=BLOCKED writeback=FAILED body=BLOCKED helper=FAILED",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-H2",
+      "group": "DoD-D4",
+      "expected": "N12 success makes writeback_state OK legally while N11 stays BLOCKED",
+      "actual": "writeback=OK n12=OK n11=BLOCKED body=BLOCKED",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-H3",
+      "group": "DoD-D4",
+      "expected": "handoff follows the N11 condition: missing reviewer is NOT_READY; a PASS envelope is READY; a BLOCKED/REVISE envelope is NOT_READY",
+      "actual": "ready=READY blocked=NOT_READY revise=NOT_READY run_standard=NOT_READY wired=True",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false,
+      "note": "READY here is the helper applied to a synthetic envelope. run_standard on this VM stays NOT_READY because no verified original exists. GAP-01 remains OPEN. This is not a constant swap and not a product PASS."
+    },
+    {
+      "id": "DOD-H-NO-CONSTANT-ASSIGN",
+      "group": "DoD-D4",
+      "expected": "run_standard does not assign writeback_state or handoff_state as a bare constant",
+      "actual": "bare_constant_assignment_present=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-D4-SAME",
+      "group": "DoD-D4",
+      "expected": "same store, intent, and blocker: second call and a new process do not notify again",
+      "actual": "first=True second=False restart={'notify_once': False}",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-D4-CHANGE",
+      "group": "DoD-D4",
+      "expected": "a blocker change notifies again",
+      "actual": "changed=True",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-D4-INTENT",
+      "group": "DoD-D4",
+      "expected": "a different intent is not suppressed by the same blocker label",
+      "actual": "other_intent=True",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-D4-OTHER-STORE",
+      "group": "DoD-D4",
+      "expected": "another store still notifies; two stores are not used as the dedup proof",
+      "actual": "other_store=True proof_is_same_store_second=False",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-D4-NO-GLOBAL-SET",
+      "group": "DoD-D4",
+      "expected": "no module-level mutable set is the dedup bucket; shape sets are not that bucket",
+      "actual": "dedup_sets=[] schema_sets=['N11_KEYS', 'N12_KEYS', 'N13_KEYS'] frozenset_constants=['WRITTEN_OBJECTS', '_READY']",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false,
+      "note": "N11_KEYS, N12_KEYS, and N13_KEYS are input-shape sets. They are not the notification bucket. Dedup is store/board/notifications.json, shown by DOD-D4-SAME across a second process."
+    },
+    {
+      "id": "DOD-D-LINKS",
+      "group": "DoD-D",
+      "expected": "evidence_links are openable capture paths or recomputable sha256 pointers, not status strings",
+      "actual": "links=['capture/Receipt-R-5f8c75f37ab242a19b15df0ec5b59bf7.json', 'sha256:819e9b6c45deaf2d614159386e08b7589d1b3a40cd6fa52cc564aeddb0cb1cf4', 'sha256:f87015b551cb92b8fcc80a60a4007d5611585344390d095bf75ae97b58ef1ab6', 'sha256:e09392bdd4409c736c4611675295c92a8ba3378383672c382dae26955cde55db', 'sha256:c19353e50cb3e1eb6bc652d669e6187e9e765b17be5b8a50e11ee699dcc55995'] recomputed_present=True paths_exist=True",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-D-WRITEBACK-SPLIT",
+      "group": "DoD-D",
+      "expected": "writeback FAILED is not reported as SUCCEEDED or envelope OK",
+      "actual": "state=BLOCKED status=BLOCKED owner=builder next=repair-writeback",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-D4-RUN-STANDARD",
+      "group": "DoD-D4",
+      "expected": "a second run_standard on the same store and intent suppresses the same blocker",
+      "actual": "first=True second=False blocker={'outcome': 'SUCCEEDED', 'verify_state': 'BLOCKED', 'writeback_state': 'OK', 'handoff_state': 'NOT_READY'}",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-E-N9-DIGEST",
+      "group": "DoD-E",
+      "expected": "a mismatched request_digest is DENY, writes a receipt file, and carries this request's grant draft",
+      "actual": "status=AUTHORIZATION_REQUIRED verdict=DENY receipts=1 draft_has_digest=True",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-E-N9-NO-GRANT",
+      "group": "DoD-E",
+      "expected": "no valid grant is DENY / AUTHORIZATION_REQUIRED with a draft and does not authorize",
+      "actual": "status=AUTHORIZATION_REQUIRED reason=GRANT_FILE_INVALID_OR_MISSING; grant_scope_draft action=internal_readonly actor=actor-a resource=/tmp/t192-work/n9/readable.txt intent=intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01 d",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-E-N5-UNREADABLE",
+      "group": "DoD-E",
+      "expected": "a FACT whose file does not open is not left as FACT and is SOURCE_UNAVAILABLE",
+      "actual": "status=SOURCE_UNAVAILABLE fact={'claim': 'readable-fact', 'verdict': 'CLAIM', 'evidence_ref': '/tmp/t192-work/no-such-fact.txt', 'freshness': 'fresh'} gaps=['SOURCE_UNAVAILABLE']",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-E-N5-FACT",
+      "group": "DoD-E",
+      "expected": "a FACT with a readable fresh file stays FACT",
+      "actual": "status=OK verdict=FACT",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "DOD-E-N5-STALE",
+      "group": "DoD-E",
+      "expected": "stale evidence stays STALE, writes a recollect marker, and the label alone is not the whole result",
+      "actual": "verdict=STALE status=PARTIAL label=True marker_exists=True marker_sha=76f6219a71828272c5088b585a4eca709515569594ee5d416aa7acbdc1a6fe24",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N10-FIXED",
+      "group": "N10",
+      "expected": "fixed file bytes: two executions share one SUCCEEDED effect and the same content summary",
+      "actual": "first=SUCCEEDED second=SUCCEEDED same_receipt=True dispatch=1 sha=023ec624a31bb54fb5018eabfb1e72d2583177e19de5e8287809d7ee5b4188f6 summary={'bytes': 11, 'sha256': '023ec624a31bb54fb5018eabfb1e72d2583177e19de5e8287809d7ee5b4188f6'}",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N10-CHANGED",
+      "group": "N10",
+      "expected": "changed file bytes change the content summary",
+      "actual": "state=SUCCEEDED sha=96ff299e658dcedeaf95f703d5493ef534cfaa5e1bc4db43d4cd74a47cf8787d expected=96ff299e658dcedeaf95f703d5493ef534cfaa5e1bc4db43d4cd74a47cf8787d",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "N10-NO-AUTH",
+      "group": "N10",
+      "expected": "no grant does not SUCCEEDED and does not dispatch",
+      "actual": "status=AUTHORIZATION_REQUIRED output=None dispatch=0 effects=0",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "BWRAP-LOCAL",
+      "group": "bwrap",
+      "expected": "if bwrap is absent, CAPABILITY_GAP with the runner record; xfail is not a pass",
+      "actual": "which=None runner={'runtime_pass': False, 'capability': 'CAPABILITY_GAP', 'returncode': None, 'argv': ['bwrap', '--die-with-parent', '--new-session', '--unshare-net', '--unshare-pid', '--as-pid-1', '--ro-bind', '/usr', '/usr', '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64', '--symlink', 'usr/bin', '/bin', '--ro-bind', '/etc', '/etc', '--proc', '/proc', '--dev', '/dev', '--remount-ro', '/dev', '--bind', '/tmp/t192-work/iso', '/iso', '--setenv', 'TMPDIR', '/iso/tmp', '--remount-ro', '/', '--chdir', '/iso', '--', '/usr/bin/python3', '-c', \"print('PIDS')\"], 'close_fds': True, 'pass_fds': [], 'stdin': 'devnull', 'error': 'BWRAP_MISSING'}",
+      "verdict": "CAPABILITY_GAP",
+      "product_pass": false,
+      "runtime_pass": false,
+      "xfail_counted_as_pass": false,
+      "note": "This host has no bwrap binary. The tip51 Ops bed is a separate ro-bind proof and is not reused as a local process-isolation pass."
+    },
+    {
+      "id": "A2-THREE-COMPONENT",
+      "group": "A2",
+      "expected": "template, isolation, and runtime digests recompute; fixture_digest is the digest of those three",
+      "actual": "runtime_code=a7a16e2615b55f7b52d2318fcc1d137d7b417bdf24d16e21d00addee96693ffa runtime_indep=a7a16e2615b55f7b52d2318fcc1d137d7b417bdf24d16e21d00addee96693ffa fixture_code=f38768ac593258c16471e348ab5cf72a927b37ccc231048bc4d17105a53ce5cb fixture_indep=f38768ac593258c16471e348ab5cf72a927b37ccc231048bc4d17105a53ce5cb template=034277eceff049b3105592cc3d96031852c83771c0a519f08d2aec8a3ba86c59 isolation=b6097b2d2e70ca230ef10b937b1a1f73a1583693d582ca4bf2c302d00964c818",
+      "verdict": "PASS",
+      "product_pass": false,
+      "runtime_pass": false,
+      "note": "Mechanism on a tester-made external store. Not an Ops inventory for tip51."
+    },
+    {
+      "id": "A2-BYTE",
+      "group": "A2",
+      "expected": "one flipped byte invalidates the old binding; re-registering changes runtime and fixture digests only",
+      "actual": "old_call=CONTENT_SHA_MISMATCH runtime_changed=True fixture_changed=True template_same=True isolation_same=True",
+      "verdict": "PASS",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "A2-FAIL-CLOSED",
+      "group": "A2",
+      "expected": "missing file, wrong candidate, snapshot kind, empty items, in-repo schema, and .. are rejected",
+      "actual": "missing=ARTIFACT_MISSING candidate=CANDIDATE_SHA_MISMATCH cycle=CYCLE_INPUT_FORBIDDEN empty=EXTERNAL_MANIFEST_EMPTY schema=RUNTIME_SCHEMA_NOT_EVIDENCE escape=PATH_ESCAPE",
+      "verdict": "PASS",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "A2-PATH-NORMALIZE",
+      "group": "A2",
+      "expected": "relative and absolute manifest paths normalize to one runtime digest",
+      "actual": "relative=a7a16e2615b55f7b52d2318fcc1d137d7b417bdf24d16e21d00addee96693ffa absolute=a7a16e2615b55f7b52d2318fcc1d137d7b417bdf24d16e21d00addee96693ffa",
+      "verdict": "PASS",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "A2-HANDOFF-BINDING",
+      "group": "A2",
+      "expected": "handoff_binding returns RECEIVED with runtime_pass false and does not write a snapshot",
+      "actual": "decision=RECEIVED product_pass=False runtime_pass=False wrote_new=False repo_snapshots=[]",
+      "verdict": "PASS",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "A2-REVIEW-REFUSES-PASS",
+      "group": "A2",
+      "expected": "review_entry does not issue PASS",
+      "actual": "PermissionError: builder self-sign blocked",
+      "verdict": "PASS",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "A2-TIP51-INVENTORY",
+      "group": "A2",
+      "expected": "an Ops external Grant/request/Receipt/log inventory pinned to tip51",
+      "actual": "no such manifest is on this VM; the ro-bind proof is not an A24 inventory",
+      "verdict": "OPEN",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "A2-HANDOFF-SNAPSHOT",
+      "group": "A2",
+      "expected": "a sealed handoff_snapshot for tip51",
+      "actual": "function does not write one; none is in the candidate tree",
+      "verdict": "OPEN",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "GAP-01",
+      "group": "gap",
+      "expected": "remain OPEN",
+      "actual": "no production reviewer record; empty registry",
+      "verdict": "OPEN",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "GAP-02",
+      "group": "gap",
+      "expected": "remain OPEN",
+      "actual": "no writer, key, or channel was created",
+      "verdict": "OPEN",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "GAP-03",
+      "group": "gap",
+      "expected": "remain OPEN",
+      "actual": "source_evidence shape is not independent verification",
+      "verdict": "OPEN",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "GAP-04",
+      "group": "gap",
+      "expected": "remain OPEN",
+      "actual": "Ops measured fixture physical RO; status still OPEN",
+      "verdict": "OPEN",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "NA-GAP-01",
+      "group": "t187",
+      "expected": "this handback must not claim N11 complete or GAP-01..04 closed",
+      "actual": "not claimed; gaps recorded OPEN; tip047 seal not applied",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    },
+    {
+      "id": "PYTEST-CONTEXT",
+      "group": "context",
+      "expected": "pytest exit and xfail are context only and are not acceptance",
+      "actual": "exit=0 tail=['........................................................................ [ 55%]', '....x.....................................................               [100%]', '=========================== short test summary info ============================', 'XFAIL tests/test_isolation_runner.py::test_hardened_runner_applies_proc_and_dev_contract - CAPABILITY_GAP: this host cannot run the process-isolation contract', '129 passed, 1 xfailed in 0.69s']",
+      "verdict": "CONTEXT",
+      "product_pass": false,
+      "runtime_pass": false,
+      "not_acceptance": true,
+      "xfail_is_not_pass": true
+    },
+    {
+      "id": "PRODUCT-TREE-UNTOUCHED",
+      "group": "custody",
+      "expected": "git status --short empty after the probe",
+      "actual": "(clean)",
+      "verdict": "MATCH",
+      "product_pass": false,
+      "runtime_pass": false
+    }
+  ]
+}

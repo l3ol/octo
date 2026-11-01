@@ -1,0 +1,90 @@
+{
+  "kind": "tester_decision",
+  "id": "group-DoD-D4",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group DoD-D4. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "DOD-H1",
+      "group": "DoD-D4",
+      "verdict": "MATCH",
+      "expected": "N12 writeback failure makes N13 writeback_state FAILED and body is not OK",
+      "actual": "n12=BLOCKED writeback=FAILED body=BLOCKED helper=FAILED"
+    },
+    {
+      "id": "DOD-H2",
+      "group": "DoD-D4",
+      "verdict": "MATCH",
+      "expected": "N12 success makes writeback_state OK legally while N11 stays BLOCKED",
+      "actual": "writeback=OK n12=OK n11=BLOCKED body=BLOCKED"
+    },
+    {
+      "id": "DOD-H3",
+      "group": "DoD-D4",
+      "verdict": "MATCH",
+      "expected": "handoff follows the N11 condition: missing reviewer is NOT_READY; a PASS envelope is READY; a BLOCKED/REVISE envelope is NOT_READY",
+      "actual": "ready=READY blocked=NOT_READY revise=NOT_READY run_standard=NOT_READY wired=True",
+      "note": "READY here is the helper applied to a synthetic envelope. run_standard on this VM stays NOT_READY because no verified original exists. GAP-01 remains OPEN. This is not a constant swap and not a product PASS."
+    },
+    {
+      "id": "DOD-H-NO-CONSTANT-ASSIGN",
+      "group": "DoD-D4",
+      "verdict": "MATCH",
+      "expected": "run_standard does not assign writeback_state or handoff_state as a bare constant",
+      "actual": "bare_constant_assignment_present=False"
+    },
+    {
+      "id": "DOD-D4-SAME",
+      "group": "DoD-D4",
+      "verdict": "MATCH",
+      "expected": "same store, intent, and blocker: second call and a new process do not notify again",
+      "actual": "first=True second=False restart={'notify_once': False}"
+    },
+    {
+      "id": "DOD-D4-CHANGE",
+      "group": "DoD-D4",
+      "verdict": "MATCH",
+      "expected": "a blocker change notifies again",
+      "actual": "changed=True"
+    },
+    {
+      "id": "DOD-D4-INTENT",
+      "group": "DoD-D4",
+      "verdict": "MATCH",
+      "expected": "a different intent is not suppressed by the same blocker label",
+      "actual": "other_intent=True"
+    },
+    {
+      "id": "DOD-D4-OTHER-STORE",
+      "group": "DoD-D4",
+      "verdict": "MATCH",
+      "expected": "another store still notifies; two stores are not used as the dedup proof",
+      "actual": "other_store=True proof_is_same_store_second=False"
+    },
+    {
+      "id": "DOD-D4-NO-GLOBAL-SET",
+      "group": "DoD-D4",
+      "verdict": "MATCH",
+      "expected": "no module-level mutable set is the dedup bucket; shape sets are not that bucket",
+      "actual": "dedup_sets=[] schema_sets=['N11_KEYS', 'N12_KEYS', 'N13_KEYS'] frozenset_constants=['WRITTEN_OBJECTS', '_READY']",
+      "note": "N11_KEYS, N12_KEYS, and N13_KEYS are input-shape sets. They are not the notification bucket. Dedup is store/board/notifications.json, shown by DOD-D4-SAME across a second process."
+    },
+    {
+      "id": "DOD-D4-RUN-STANDARD",
+      "group": "DoD-D4",
+      "verdict": "MATCH",
+      "expected": "a second run_standard on the same store and intent suppresses the same blocker",
+      "actual": "first=True second=False blocker={'outcome': 'SUCCEEDED', 'verify_state': 'BLOCKED', 'writeback_state': 'OK', 'handoff_state': 'NOT_READY'}"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+which=None
+command_v=
+ls_code=2
+ls=ls: cannot access '/usr/bin/bwrap': No such file or directory
+ls: cannot access '/bin/bwrap': No such file or directory
+

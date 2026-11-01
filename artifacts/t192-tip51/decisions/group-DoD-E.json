@@ -1,0 +1,53 @@
+{
+  "kind": "tester_decision",
+  "id": "group-DoD-E",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group DoD-E. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "DOD-E-N9-DIGEST",
+      "group": "DoD-E",
+      "verdict": "MATCH",
+      "expected": "a mismatched request_digest is DENY, writes a receipt file, and carries this request's grant draft",
+      "actual": "status=AUTHORIZATION_REQUIRED verdict=DENY receipts=1 draft_has_digest=True"
+    },
+    {
+      "id": "DOD-E-N9-NO-GRANT",
+      "group": "DoD-E",
+      "verdict": "MATCH",
+      "expected": "no valid grant is DENY / AUTHORIZATION_REQUIRED with a draft and does not authorize",
+      "actual": "status=AUTHORIZATION_REQUIRED reason=GRANT_FILE_INVALID_OR_MISSING; grant_scope_draft action=internal_readonly actor=actor-a resource=/tmp/t192-work/n9/readable.txt intent=intent-PRODUCT-BUILD-2026-11-01-G2-S1-TB-01 d"
+    },
+    {
+      "id": "DOD-E-N5-UNREADABLE",
+      "group": "DoD-E",
+      "verdict": "MATCH",
+      "expected": "a FACT whose file does not open is not left as FACT and is SOURCE_UNAVAILABLE",
+      "actual": "status=SOURCE_UNAVAILABLE fact={'claim': 'readable-fact', 'verdict': 'CLAIM', 'evidence_ref': '/tmp/t192-work/no-such-fact.txt', 'freshness': 'fresh'} gaps=['SOURCE_UNAVAILABLE']"
+    },
+    {
+      "id": "DOD-E-N5-FACT",
+      "group": "DoD-E",
+      "verdict": "MATCH",
+      "expected": "a FACT with a readable fresh file stays FACT",
+      "actual": "status=OK verdict=FACT"
+    },
+    {
+      "id": "DOD-E-N5-STALE",
+      "group": "DoD-E",
+      "verdict": "MATCH",
+      "expected": "stale evidence stays STALE, writes a recollect marker, and the label alone is not the whole result",
+      "actual": "verdict=STALE status=PARTIAL label=True marker_exists=True marker_sha=76f6219a71828272c5088b585a4eca709515569594ee5d416aa7acbdc1a6fe24"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "kind": "tester_decision",
+  "id": "T192-TIP51-OVERALL",
+  "状态": "T192_TIP51_EVIDENCED_PARTIAL",
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "stack_ok_is_not_pass": true,
+  "ci_is_not_pass": true,
+  "candidate": {
+    "tip": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "statement": "Evidence recorded. Gaps remain OPEN. Local bwrap is CAPABILITY_GAP. NA-RO-03/04 PASS evidence is the tip51 Ops bed only. This decision does not accept the candidate.",
+  "gaps_open": ["GAP-01", "GAP-02", "GAP-03", "GAP-04"],
+  "waiting_ops_tip51": "CLEARED"
+}
