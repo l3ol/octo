@@ -72,10 +72,14 @@ def test_real_evidence_bed_and_pin_load():
         assert not ops_visible
         head = rev_parse(paths["candidate_worktree"], "HEAD")
         tree = rev_parse(paths["candidate_worktree"], "HEAD^{tree}")
-        assert head == TIP_BINDING
-        assert tree == TREE_BINDING
+        assert head == paths["resolved_tip"]
+        if paths["bound_tip_present"]:
+            assert head == TIP_BINDING
+            assert tree == TREE_BINDING
+        else:
+            assert head == rev_parse(_workspace(), "HEAD")
         bare = paths["disposable_git"]
-        pin_sha = snapshot_pin_commit(bare, _workspace(), TIP_BINDING)
+        pin_sha = snapshot_pin_commit(bare, _workspace(), str(paths["resolved_tip"]))
         assert _SHA40.fullmatch(pin_sha)
         assert not pin_sha.startswith("0123456789abcdef0123")
         assert pin_sha != "a" * 40

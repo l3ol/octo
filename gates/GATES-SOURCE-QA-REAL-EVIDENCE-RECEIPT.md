@@ -14,7 +14,7 @@
 - draft PR: https://github.com/l3ol/octo/pull/12
 - authoritative Ops root: `/home/box/ops-isolation/gates/source-qa-isolation-bed-2026-11-01`
 - ops root visible on this VM: false
-- twin: isomorphic disposable bed built by `gates.isolation_bed.build_twin_bed` from tip `d50148d9…` (push URL `DISABLED-DO-NOT-PUSH`)
+- twin: isomorphic disposable bed built by `gates.isolation_bed.build_twin_bed`. It checks out `d50148d9…` when that object is in the clone. A shallow CI checkout deepens `origin` first and, if the object is still absent, detaches the twin at `HEAD` instead of inventing a SHA. Push URL stays `DISABLED-DO-NOT-PUSH`.
 
 This is not a G4 seal and not an independent Reviewer PASS. Chief re-freezes G4.
 

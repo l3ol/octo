@@ -22,7 +22,7 @@ import shutil
 import stat
 from pathlib import Path
 
-from gates.gitcmd import archive_sha256, object_type, rev_parse, run_git, show_bytes
+from gates.gitcmd import archive_sha256, cat_file_commit, object_type, rev_parse, run_git, show_bytes
 from gates.types import now_cst
 
 OPS_ROOT = Path("/home/box/ops-isolation/gates/source-qa-isolation-bed-2026-11-01")
@@ -62,8 +62,19 @@ def _ignore_junk(_dir: str, names: list[str]) -> set[str]:
     return {name for name in names if name == "__pycache__" or name.endswith(".pyc")}
 
 
-def build_twin_bed(root: Path, workspace: Path, tip: str = TIP_BINDING) -> dict[str, Path]:
+def ensure_commit(workspace: Path, sha: str) -> str:
+    """Return sha when this clone has it. A shallow CI checkout may need a deepen."""
+    if cat_file_commit(workspace, sha):
+        return sha
+    run_git(workspace, "fetch", "--deepen=50", "origin", check=False)
+    if cat_file_commit(workspace, sha):
+        return sha
+    return rev_parse(workspace, "HEAD")
+
+
+def build_twin_bed(root: Path, workspace: Path, tip: str = TIP_BINDING) -> dict[str, Path | str | bool]:
     """Create an isomorphic disposable bed. Does not touch the Ops root or GitHub."""
+    tip = ensure_commit(workspace, tip)
     root.mkdir(parents=True, exist_ok=True)
     bare = root / "git" / "octo-gates-DISPOSABLE.git"
     if not bare.exists():
@@ -101,6 +112,8 @@ def build_twin_bed(root: Path, workspace: Path, tip: str = TIP_BINDING) -> dict[
         "pin_loadpath": pin_root,
         "cas_slot": cas,
         "l1_drill": l1,
+        "resolved_tip": tip,
+        "bound_tip_present": tip == TIP_BINDING,
     }
 
 
