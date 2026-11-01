@@ -7,14 +7,21 @@ The registry root (``OCTO_TRUSTED_ORIGINAL_ROOT``) sits outside the candidate
 work tree and outside any writable isolation store. This module only reads it.
 A candidate-supplied path, issuer, hash, or registration id is not a query key.
 
-ENGINEERING_GAP (left open on purpose):
+Relay, documented only. This module does not write it and does not sign:
+original reviewer session collects the bytes, the registrar stores the SHA,
+the record is copied to the box, and Ops publishes that directory read-only.
+Writeback of a reviewer conclusion happens only when that original role
+issues it. There is no new signing authority, no key, and no resident channel.
+
+ENGINEERING_GAP (still open):
 - GAP-01 the original reviewer session has not placed a production record.
-- GAP-02 no existing control-plane writer is wired; do not add a key or channel.
-- GAP-03 ``source_evidence`` is checked for control-plane shape and issuer
-  agreement. A separate proof channel is not defined and is not invented here.
+- GAP-02 no existing control-plane writer or CopyToBox entry is wired here.
+- GAP-03 agent id and session id are checked as two read-only constants.
+  A separate proof channel is not defined and is not invented here.
 - GAP-04 Ops still confirms the deployed root is read-only to the candidate.
 
-Empty registry stays BLOCKED. A later record in that root is consumed without
+Empty registry stays BLOCKED. A TEST_FIXTURE hit stays BLOCKED with
+``TEST_FIXTURE_ONLY``. A later record in that root is consumed without
 editing the trust predicate. ``runtime_pass`` stays false.
 """
 
@@ -31,6 +38,7 @@ from octo.g3_review import product_scope_digest
 from octo.objects import digest
 
 TA_REVIEWER_ID = "agt_6ae61c44e54081918e81a0adea556ef8"
+ORIGINAL_REVIEWER_SESSION_ID = "6ae6216e-bbec-83e8-87dc-c3edd9027bcc"
 REGISTRY_ENV = "OCTO_TRUSTED_ORIGINAL_ROOT"
 FIXTURE_DIGEST_ENV = "OCTO_FIXTURE_DIGEST"
 CANDIDATE_ROOT = Path(__file__).resolve().parents[1]
@@ -134,7 +142,7 @@ def _inside(path: Path, root: Path) -> bool:
 
 def root_block(root: Path | None, *, store_root: Path | None = None) -> str | None:
     """Unconfigured, missing, inside the candidate or a writable store, or writable."""
-    if root is None:
+    if root is None or root.is_symlink():
         return "ROOT_UNAVAILABLE"
     if not root.exists() or not root.is_dir():
         return "ROOT_UNAVAILABLE"
@@ -162,12 +170,25 @@ def _read_confined(root: Path, ref: Any) -> bytes | str:
         current = current / part
         if current.is_symlink():
             return "PATH_ESCAPE"
-    if not current.is_file():
+    if current.is_symlink() or not current.is_file():
         return "PATH_ESCAPE"
-    resolved = current.resolve()
-    if not _inside(resolved, root.resolve()):
+    flags = os.O_RDONLY | os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(current, flags)
+    except OSError:
         return "PATH_ESCAPE"
-    return current.read_bytes()
+    try:
+        chunks = []
+        while True:
+            block = os.read(fd, 1 << 20)
+            if not block:
+                break
+            chunks.append(block)
+    finally:
+        os.close(fd)
+    return b"".join(chunks)
 
 
 def open_registry(root: Path | None, *, store_root: Path | None = None) -> ReadOnlyRegistry | Empty:
@@ -176,11 +197,16 @@ def open_registry(root: Path | None, *, store_root: Path | None = None) -> ReadO
         return Empty(blocked)
     assert root is not None
     index = root / "registry.json"
-    if not index.is_file():
+    if index.is_symlink():
+        return Empty("ROOT_UNAVAILABLE")
+    if not index.exists():
         return ReadOnlyRegistry(root=root.resolve(), records={})
+    payload = _read_confined(root, "registry.json")
+    if isinstance(payload, str):
+        return Empty("ROOT_UNAVAILABLE")
     try:
-        document = json.loads(index.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
+        document = json.loads(payload.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
         return Empty("ROOT_UNAVAILABLE")
     rows = document.get("records") if isinstance(document, dict) else None
     if not isinstance(rows, list):
@@ -200,16 +226,26 @@ def open_registry(root: Path | None, *, store_root: Path | None = None) -> ReadO
 
 
 def _evidence_ok(record: Mapping[str, Any]) -> str | None:
+    """Check the agent and the session as two different sources.
+
+    The public agent id is not a session id. Putting ``TA_REVIEWER_ID`` in
+    ``issuer_session_id`` does not verify the original session.
+    """
     evidence = record.get("source_evidence")
     issuer = record.get("issuer_id")
     if not isinstance(evidence, dict):
         return "EVIDENCE_UNVERIFIED"
     transfer = evidence.get("transfer_receipt_id")
     session = evidence.get("issuer_session_id")
+    agent = evidence.get("issuer_agent_id")
     proof = evidence.get("relay_proof")
-    if not all(isinstance(item, str) and item.strip() for item in (transfer, session, proof)):
+    if not all(isinstance(item, str) and item.strip() for item in (transfer, session, proof, agent)):
         return "EVIDENCE_UNVERIFIED"
-    if not isinstance(issuer, str) or issuer != TA_REVIEWER_ID or session != issuer:
+    if session == TA_REVIEWER_ID or session == issuer or session == agent:
+        return "ISSUER_MISMATCH"
+    if agent != TA_REVIEWER_ID or issuer != TA_REVIEWER_ID:
+        return "ISSUER_MISMATCH"
+    if session != ORIGINAL_REVIEWER_SESSION_ID:
         return "ISSUER_MISMATCH"
     return None
 

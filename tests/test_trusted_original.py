@@ -14,6 +14,7 @@ import pytest
 from octo.closing import TA_REVIEWER_ID, _verified_original, run_n11
 from octo.g3_review import product_scope_digest
 from octo.trusted_original import (
+    ORIGINAL_REVIEWER_SESSION_ID,
     BindingTuple,
     Found,
     consume_trusted_original,
@@ -52,7 +53,8 @@ def _record(root: Path, *, registration_id: str = "reg-1", raw: bytes = b"fixtur
         "raw_bytes_ref": f"bytes/{registration_id}",
         "source_evidence": {
             "transfer_receipt_id": "transfer-1",
-            "issuer_session_id": TA_REVIEWER_ID,
+            "issuer_agent_id": TA_REVIEWER_ID,
+            "issuer_session_id": ORIGINAL_REVIEWER_SESSION_ID,
             "relay_proof": "control-plane-shape",
         },
         "issuer_id": TA_REVIEWER_ID,
@@ -329,6 +331,39 @@ def test_fixture_loop_hash_mismatch_escape_evidence_and_ambiguous(tmp_path):
         assert getattr(consume_trusted_original(binding, _view(many), set()), "reason_code", "") == "AMBIGUOUS"
     finally:
         _unseal(many)
+
+
+def test_agent_id_is_not_accepted_as_the_session(tmp_path):
+    root = tmp_path / "session"
+    binding = normalize_binding(_tuple())
+    stuffed = _record(root, binding_tuple=binding.as_dict())
+    stuffed["source_evidence"]["issuer_session_id"] = TA_REVIEWER_ID
+    _seal(root, [stuffed])
+    try:
+        result = consume_trusted_original(binding, _view(root), set())
+    finally:
+        _unseal(root)
+    assert getattr(result, "reason_code", "") == "ISSUER_MISMATCH"
+
+
+def test_symlinked_registry_index_is_not_read(tmp_path):
+    outside = tmp_path / "outside.json"
+    outside.write_text(json.dumps({"records": [{
+        "registration_id": "escaped",
+        "issuer_id": TA_REVIEWER_ID,
+        "verdict": "PASS",
+    }]}), encoding="utf-8")
+    root = tmp_path / "link-root"
+    root.mkdir()
+    (root / "registry.json").symlink_to(outside)
+    root.chmod(0o555)
+    try:
+        from octo.trusted_original import open_registry
+        opened = open_registry(root)
+    finally:
+        root.chmod(0o755)
+    assert getattr(opened, "reason", "") == "ROOT_UNAVAILABLE"
+    assert not hasattr(opened, "records") or "escaped" not in getattr(opened, "records", {})
 
 
 def test_candidate_self_report_does_not_select_the_record(tmp_path):
