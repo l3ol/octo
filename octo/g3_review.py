@@ -126,24 +126,26 @@ def _inside(path: Path, root: Path) -> bool:
     return True
 
 
-def verified_runtime_inventory(manifest_path: Path | str, *, candidate_sha: str) -> dict:
-    """Check an external Grant/request/Receipt/log inventory and return its canonical body.
+def verified_runtime_inventory(manifest_path: Path | str, *, candidate_sha: str) -> list[dict]:
+    """Return A24 rows. This list, sorted by ``path``, is the hash input.
 
-    The returned object is the hashed runtime input. It does not contain the
-    manifest path, a review receipt, a handoff snapshot, or a fixture digest.
+    Each row has exactly ``bound_candidate_sha``, ``bytes``, ``content_sha256``,
+    ``kind``, and ``path``. The manifest file, review receipt, snapshot, and
+    fixture-digest record are not rows.
     """
     candidate_sha = require_candidate_sha(candidate_sha)
     manifest = Path(manifest_path)
     if not manifest.is_file():
-        raise ValueError("external runtime manifest is missing")
+        raise ValueError("EXTERNAL_MANIFEST_MISSING")
     resolved_manifest = manifest.resolve()
     if _inside(resolved_manifest, ROOT) or resolved_manifest == RUNTIME_SCHEMA_PATH.resolve():
-        raise ValueError("in-repo schema is not an external runtime manifest")
+        raise ValueError("RUNTIME_SCHEMA_NOT_EVIDENCE")
     document = load_json(resolved_manifest)
     if document.get("kind") == "runtime_artifact_inventory_schema" or document.get("acceptance_input") is False:
-        raise ValueError("schema inventory is not an acceptance runtime manifest")
-    if "candidate_sha" not in document or require_candidate_sha(document["candidate_sha"]) != candidate_sha:
-        raise ValueError("runtime manifest candidate binding mismatch")
+        raise ValueError("RUNTIME_SCHEMA_NOT_EVIDENCE")
+    declared = document.get("bound_candidate_sha", document.get("candidate_sha"))
+    if declared is None or require_candidate_sha(declared) != candidate_sha:
+        raise ValueError("CANDIDATE_SHA_MISMATCH")
     store_root = document.get("store_root")
     if not isinstance(store_root, str) or not Path(store_root).is_dir():
         raise ValueError("runtime store_root is missing")
@@ -152,7 +154,7 @@ def verified_runtime_inventory(manifest_path: Path | str, *, candidate_sha: str)
         raise ValueError("runtime store_root is inside the candidate tree")
     raw_items = document.get("items")
     if not isinstance(raw_items, list) or not raw_items:
-        raise ValueError("runtime manifest has no artifact items")
+        raise ValueError("EXTERNAL_MANIFEST_EMPTY")
     items = []
     seen: set[Path] = set()
     for raw in raw_items:
@@ -160,54 +162,55 @@ def verified_runtime_inventory(manifest_path: Path | str, *, candidate_sha: str)
             raise ValueError("runtime artifact item must be an object")
         kind = raw.get("kind")
         if kind in EXCLUDED_ARTIFACT_KINDS:
-            raise ValueError(
-                "runtime inventory must not include the manifest, snapshot, review receipt, or fixture_digest"
-            )
+            raise ValueError("CYCLE_INPUT_FORBIDDEN")
         if kind not in REQUIRED_ARTIFACT_KINDS:
-            raise ValueError("runtime artifact kind must be grant, request, receipt, or log")
-        if not isinstance(raw.get("path"), str) or "sha256" not in raw or "bytes" not in raw:
-            raise ValueError("runtime artifact item requires path, bytes, and sha256")
+            raise ValueError("KIND_INVALID")
+        relative = raw.get("path")
+        if not isinstance(relative, str) or relative.startswith("/") or ".." in Path(relative).parts:
+            raise ValueError("PATH_ESCAPE")
+        if "content_sha256" not in raw or "bytes" not in raw or "bound_candidate_sha" not in raw:
+            raise ValueError("runtime artifact item requires path, bytes, content_sha256, and bound_candidate_sha")
         try:
-            confined = safe_path(Path(raw["path"]), store_root_path)
+            confined = safe_path(store_root_path / relative, store_root_path)
         except Denied as exc:
-            raise ValueError(f"runtime artifact path escape: {exc}") from exc
+            raise ValueError("PATH_ESCAPE") from exc
         if not confined.is_file():
-            raise ValueError("runtime artifact file is missing")
+            raise ValueError("ARTIFACT_MISSING")
         if confined.resolve() == resolved_manifest:
-            raise ValueError("runtime manifest must not be a member of the runtime inventory")
+            raise ValueError("CYCLE_INPUT_FORBIDDEN")
         if confined.name in EXCLUDED_ARTIFACT_NAMES:
-            raise ValueError(
-                "runtime inventory must not include the manifest, snapshot, review receipt, or fixture_digest"
-            )
+            raise ValueError("CYCLE_INPUT_FORBIDDEN")
         if confined.resolve() in seen:
             raise ValueError("runtime artifact path repeated")
         seen.add(confined.resolve())
         content = confined.read_bytes()
         file_sha = hashlib.sha256(content).hexdigest()
-        if file_sha != file_digest(raw["sha256"]):
-            raise ValueError("runtime artifact sha256 mismatch")
+        if file_sha != file_digest(raw["content_sha256"]):
+            code = "POST_FREEZE_REWRITE" if document.get("sealed") is True else "CONTENT_SHA_MISMATCH"
+            raise ValueError(code)
         if type(raw["bytes"]) is not int or raw["bytes"] != len(content):
-            raise ValueError("runtime artifact byte length mismatch")
-        if "candidate_sha" in raw and require_candidate_sha(raw["candidate_sha"]) != candidate_sha:
-            raise ValueError("runtime artifact candidate binding mismatch")
+            raise ValueError("BYTES_MISMATCH")
+        if require_candidate_sha(raw["bound_candidate_sha"]) != candidate_sha:
+            raise ValueError("CANDIDATE_SHA_MISMATCH")
         items.append({
+            "bound_candidate_sha": candidate_sha,
             "bytes": len(content),
+            "content_sha256": file_sha,
             "kind": kind,
-            "path": confined.resolve().as_posix(),
-            "sha256": file_sha,
+            "path": relative,
         })
     if not REQUIRED_ARTIFACT_KINDS <= {item["kind"] for item in items}:
         raise ValueError("runtime manifest must list grant, request, receipt, and log")
-    items.sort(key=lambda item: (item["kind"], item["path"]))
-    return {
-        "kind": "external_runtime_artifact_inventory",
-        "candidate_sha": candidate_sha,
-        "items": items,
-    }
+    items.sort(key=lambda item: item["path"])
+    return items
 
 
 def runtime_artifact_digest(manifest_path: Path | str, *, candidate_sha: str) -> str:
-    """Digest of a verified external inventory. The in-repo schema is rejected."""
+    """A24: sha256(canonical JSON of rows sorted by relative path).
+
+    The hash input is that list only, not a wrapper object and not the
+    in-repo schema file.
+    """
     return digest(verified_runtime_inventory(manifest_path, candidate_sha=candidate_sha))
 
 

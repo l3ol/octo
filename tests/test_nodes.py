@@ -67,7 +67,12 @@ def _pack() -> dict:
         },
         "n8": {
             "intent": intent,
-            "options": json.loads(n1_in["text"])["execution_options"],
+            "options": [
+                {
+                    **json.loads(n1_in["text"])["execution_options"][0],
+                    "measurable_acceptance": "PYTHONPATH=. pytest tests/ -q exits 0",
+                }
+            ],
         },
     }
 
@@ -90,7 +95,8 @@ def test_each_prefix_node_envelope_recomputes_inputs_hash():
     n3 = result["envelopes"][2]["output"]
     assert n3["still_worth_it"] is True
     assert n3["kill_line"] == "SOURCE_UNAVAILABLE"
-    assert n3["fixture"] == "TEST_FIXTURE"
+    assert "TEST_FIXTURE" in n3["reason"]
+    assert set(n3) == {"still_worth_it", "reason", "kill_line"}
     n5 = result["envelopes"][4]["output"]
     assert n5["facts"][0]["verdict"] == "CLAIM"
     n8 = result["envelopes"][5]
@@ -147,13 +153,12 @@ def test_n8_rejects_fake_n6_options():
 
 def test_n3_named_kill_line_does_not_invent_continuation():
     intent = {"intent_id": "intent-1", "state": "ACTIVE"}
-    envelope = run_n3(
-        {
-            "intent": intent,
-            "context_pack": {"intent_id": "intent-1"},
-            "新事实/偏差信号": {"kill_line": "budget-exhausted"},
-        },
-        at=AT,
-    )
-    assert envelope["output"]["still_worth_it"] is False
-    assert envelope["output"]["fixture"] == "TEST_FIXTURE"
+    with pytest.raises(ValueError, match="NO_TOUCH_COMPARISON"):
+        run_n3(
+            {
+                "intent": intent,
+                "context_pack": {"intent_id": "intent-1"},
+                "新事实/偏差信号": {"kill_line": "budget-exhausted"},
+            },
+            at=AT,
+        )

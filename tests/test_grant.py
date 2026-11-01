@@ -60,15 +60,9 @@ def _issue(store: GrantStore, request: AuthorizationRequest, **overrides) -> dic
 
 def _inputs(request: AuthorizationRequest) -> dict:
     return {
-        "actor": request.actor,
         "action": request.action,
-        "resource": request.resource,
-        "parameters": request.parameters,
-        "intent_id": request.intent_id,
-        "idempotency_key": request.idempotency_key,
-        "git_candidate_sha": request.git_candidate_sha,
-        "tree_sha": request.tree_sha,
-        "grant_ref": request.grant_id,
+        "grant_id": request.grant_id,
+        "request_digest": request.digest,
     }
 
 
@@ -103,11 +97,11 @@ def test_positive_allow_grant_ref_is_usable_by_router(tmp_path):
     )
     assert decision.status == "OK"
     assert decision.execution_authorized is True
-    envelope = run_n9(_inputs(request), at=AT, store=store, now=NOW)
+    envelope = run_n9(_inputs(request), at=AT, store=store, request=request, now=NOW)
     sealed = validate_envelope(envelope)
     assert sealed.node_id == "N9"
     assert sealed.inputs_hash == inputs_hash(envelope["inputs"])
-    assert envelope["output"]["precheck"] == "N9_MIN"
+    assert envelope["output"]["verdict"] == "ALLOW"
     assert envelope["output"]["grant_ref"] == "g-allow"
     assert envelope["node_id"] not in {"N6", "N7"}
 
@@ -155,9 +149,10 @@ def test_six_validators_each_write_one_deny_receipt(tmp_path, validator, mutate)
     )
     assert decision.status == "AUTHORIZATION_REQUIRED"
     assert decision.execution_authorized is False
-    envelope = run_n9(_inputs(request), at=AT, store=store, now=when)
+    envelope = run_n9(_inputs(request), at=AT, store=store, request=request, now=when)
     assert envelope["status"] == "AUTHORIZATION_REQUIRED"
-    assert envelope["output"] is None
+    assert envelope["output"]["verdict"] == "DENY"
+    assert "grant_scope_draft" in envelope["output"]["reason"]
     assert envelope["node_id"] == "N9"
 
 

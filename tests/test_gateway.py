@@ -52,10 +52,7 @@ def _n10_inputs(request: AuthorizationRequest) -> dict:
     return {
         "action": request.action,
         "grant_ref": request.grant_id,
-        "idempotency_key": request.idempotency_key,
-        "request_digest": request.digest,
-        "git_candidate_sha": request.git_candidate_sha,
-        "tree_sha": request.tree_sha,
+        "context_pack": {"intent_id": request.intent_id},
     }
 
 
@@ -158,7 +155,8 @@ def test_n10_ok_envelope_has_no_chat_authority(tmp_path):
     envelope = run_n10(_n10_inputs(request), at=AT, gateway=gateway, request=request, now=NOW)
     sealed = validate_envelope(envelope)
     assert sealed.status == "OK"
-    assert envelope["output"]["state"] == "SUCCEEDED"
+    assert envelope["output"]["result"] == "SUCCEEDED"
+    assert "evidence_refs" in envelope["output"]
     assert "chat_text" not in envelope["inputs"]
     assert gateway.dispatch_count == 1
     journal.close()

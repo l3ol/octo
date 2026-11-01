@@ -33,11 +33,12 @@ def _git(*args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
 
 
-def _write_manifest(path: Path, store: Path, candidate_sha: str, items: list[dict]) -> None:
+def _write_manifest(path: Path, store: Path, candidate_sha: str, items: list[dict], *, sealed: bool = False) -> None:
     path.write_text(json.dumps({
         "kind": "external_runtime_artifact_inventory",
-        "candidate_sha": candidate_sha,
+        "bound_candidate_sha": candidate_sha,
         "store_root": str(store.resolve()),
+        "sealed": sealed,
         "items": items,
     }), encoding="utf-8")
 
@@ -57,9 +58,10 @@ def _external(tmp_path: Path, candidate_sha: str, *, bodies: dict[str, bytes] | 
         artifact.write_bytes(body)
         items.append({
             "kind": kind,
-            "path": str(artifact.resolve()),
-            "sha256": hashlib.sha256(body).hexdigest(),
+            "path": artifact.name,
+            "content_sha256": hashlib.sha256(body).hexdigest(),
             "bytes": len(body),
+            "bound_candidate_sha": candidate_sha,
         })
     manifest = tmp_path / "runtime-manifest.json"
     _write_manifest(manifest, store, candidate_sha, items)
@@ -121,7 +123,7 @@ def test_product_scope_and_three_column_fixture_digest_recompute():
     assert schema["acceptance_input"] is False
     assert schema["kind"] == "runtime_artifact_inventory_schema"
     assert "candidate_sha" not in schema
-    with pytest.raises(ValueError, match="in-repo schema"):
+    with pytest.raises(ValueError, match="RUNTIME_SCHEMA_NOT_EVIDENCE"):
         runtime_artifact_digest(ROOT / "tests/fixtures/g2s1/runtime-artifact-inventory.json", candidate_sha=_git("rev-parse", "HEAD"))
     with pytest.raises(TypeError):
         fixture_digest()
@@ -234,6 +236,9 @@ def test_one_byte_change_moves_runtime_and_fixture_digests(tmp_path):
     candidate_sha = _git("rev-parse", "HEAD")
     manifest = _external(tmp_path, candidate_sha)
     before = column_digests(runtime_manifest=manifest, candidate_sha=candidate_sha)
+    rows = verified_runtime_inventory(manifest, candidate_sha=candidate_sha)
+    assert before["runtime_artifact_digest"] == digest(rows)
+    assert [row["path"] for row in rows] == sorted(row["path"] for row in rows)
     assert before["fixture_digest"] == digest({
         "template_digest": before["template_digest"],
         "runtime_artifact_digest": before["runtime_artifact_digest"],
@@ -242,7 +247,7 @@ def test_one_byte_change_moves_runtime_and_fixture_digests(tmp_path):
     grant = tmp_path / "isolation-store" / "grant.json"
     original = grant.read_bytes()
     grant.write_bytes(original[:-1] + bytes([original[-1] ^ 0x01]))
-    with pytest.raises(ValueError, match="sha256 mismatch"):
+    with pytest.raises(ValueError, match="CONTENT_SHA_MISMATCH"):
         runtime_artifact_digest(manifest, candidate_sha=candidate_sha)
     rebound = _external(tmp_path / "rebound", candidate_sha, bodies={
         "grant": grant.read_bytes(),
@@ -261,7 +266,7 @@ def test_fail_closed_on_missing_escape_mismatch_and_empty(tmp_path):
     candidate_sha = _git("rev-parse", "HEAD")
     manifest = _external(tmp_path, candidate_sha)
     (tmp_path / "isolation-store" / "log.json").unlink()
-    with pytest.raises(ValueError, match="missing"):
+    with pytest.raises(ValueError, match="ARTIFACT_MISSING"):
         runtime_artifact_digest(manifest, candidate_sha=candidate_sha)
     store = tmp_path / "escape-store"
     store.mkdir()
@@ -271,21 +276,22 @@ def test_fail_closed_on_missing_escape_mismatch_and_empty(tmp_path):
     _write_manifest(escaped, store, candidate_sha, [{
         "kind": "grant",
         "path": str(outside.resolve()),
-        "sha256": hashlib.sha256(outside.read_bytes()).hexdigest(),
+        "content_sha256": hashlib.sha256(outside.read_bytes()).hexdigest(),
+        "bound_candidate_sha": candidate_sha,
         "bytes": outside.stat().st_size,
     }])
-    with pytest.raises(ValueError, match="path escape"):
+    with pytest.raises(ValueError, match="PATH_ESCAPE"):
         runtime_artifact_digest(escaped, candidate_sha=candidate_sha)
     mismatch = _external(tmp_path / "mismatch", candidate_sha)
-    with pytest.raises(ValueError, match="candidate binding mismatch"):
+    with pytest.raises(ValueError, match="CANDIDATE_SHA_MISMATCH"):
         runtime_artifact_digest(mismatch, candidate_sha="1" * 40)
     empty = tmp_path / "empty-manifest.json"
     _write_manifest(empty, store, candidate_sha, [])
-    with pytest.raises(ValueError, match="no artifact items"):
+    with pytest.raises(ValueError, match="EXTERNAL_MANIFEST_EMPTY"):
         runtime_artifact_digest(empty, candidate_sha=candidate_sha)
     schema_copy = tmp_path / "schema-copy.json"
     schema_copy.write_bytes((ROOT / "tests/fixtures/g2s1/runtime-artifact-inventory.json").read_bytes())
-    with pytest.raises(ValueError, match="schema inventory"):
+    with pytest.raises(ValueError, match="RUNTIME_SCHEMA_NOT_EVIDENCE"):
         runtime_artifact_digest(schema_copy, candidate_sha=candidate_sha)
 
 
@@ -293,12 +299,15 @@ def test_rewrite_and_cycle_members_are_rejected(tmp_path):
     candidate_sha = _git("rev-parse", "HEAD")
     manifest = _external(tmp_path, candidate_sha)
     inventory = verified_runtime_inventory(manifest, candidate_sha=candidate_sha)
-    assert set(inventory) == {"kind", "candidate_sha", "items"}
-    assert manifest.resolve().as_posix() not in {item["path"] for item in inventory["items"]}
+    assert isinstance(inventory, list)
+    assert all(set(row) == {"bound_candidate_sha", "bytes", "content_sha256", "kind", "path"} for row in inventory)
+    assert "runtime-manifest.json" not in {row["path"] for row in inventory}
+    sealed = tmp_path / "sealed-manifest.json"
+    sealed.write_text(manifest.read_text(encoding="utf-8").replace('"sealed": false', '"sealed": true'), encoding="utf-8")
     frozen = (tmp_path / "isolation-store" / "receipt.json").read_bytes()
     (tmp_path / "isolation-store" / "receipt.json").write_bytes(frozen + b" ")
-    with pytest.raises(ValueError, match="sha256 mismatch"):
-        runtime_artifact_digest(manifest, candidate_sha=candidate_sha)
+    with pytest.raises(ValueError, match="POST_FREEZE_REWRITE"):
+        runtime_artifact_digest(sealed, candidate_sha=candidate_sha)
     store = tmp_path / "cycle-store"
     store.mkdir()
     receipt = store / "review-receipt.json"
@@ -306,23 +315,25 @@ def test_rewrite_and_cycle_members_are_rejected(tmp_path):
     cycle = tmp_path / "cycle-manifest.json"
     _write_manifest(cycle, store, candidate_sha, [{
         "kind": "receipt",
-        "path": str(receipt.resolve()),
-        "sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
+        "path": receipt.name,
+        "content_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
+        "bound_candidate_sha": candidate_sha,
         "bytes": receipt.stat().st_size,
     }])
-    with pytest.raises(ValueError, match="review receipt"):
+    with pytest.raises(ValueError, match="CYCLE_INPUT_FORBIDDEN"):
         runtime_artifact_digest(cycle, candidate_sha=candidate_sha)
     snapshot = store / "handoff-snapshot.json"
     snapshot.write_bytes(b"{}\n")
     listed = json.loads(cycle.read_text(encoding="utf-8"))
     listed["items"] = [{
         "kind": "log",
-        "path": str(snapshot.resolve()),
-        "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
+        "path": snapshot.name,
+        "content_sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
+        "bound_candidate_sha": candidate_sha,
         "bytes": snapshot.stat().st_size,
     }]
     cycle.write_text(json.dumps(listed), encoding="utf-8")
-    with pytest.raises(ValueError, match="snapshot"):
+    with pytest.raises(ValueError, match="CYCLE_INPUT_FORBIDDEN"):
         runtime_artifact_digest(cycle, candidate_sha=candidate_sha)
 
 

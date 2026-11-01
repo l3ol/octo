@@ -83,26 +83,17 @@ _guard_emitter()
 
 def _n9_inputs(request) -> dict:
     return {
-        "actor": request.actor,
         "action": request.action,
-        "resource": request.resource,
-        "parameters": request.parameters,
-        "intent_id": request.intent_id,
-        "idempotency_key": request.idempotency_key,
-        "git_candidate_sha": request.git_candidate_sha,
-        "tree_sha": request.tree_sha,
-        "grant_ref": request.grant_id,
+        "grant_id": request.grant_id,
+        "request_digest": request.digest,
     }
 
 
-def _n10_inputs(request) -> dict:
+def _n10_inputs(request, context_pack: dict) -> dict:
     return {
         "action": request.action,
         "grant_ref": request.grant_id,
-        "idempotency_key": request.idempotency_key,
-        "request_digest": request.digest,
-        "git_candidate_sha": request.git_candidate_sha,
-        "tree_sha": request.tree_sha,
+        "context_pack": context_pack,
     }
 
 
@@ -113,58 +104,54 @@ def run_standard(route_request, pack, *, at: str, request, store, now=None) -> d
         return body
     gateway = pack["gateway"]
     envelopes = list(body["envelopes"])
-    n9_env = run_n9(_n9_inputs(request), at=at, store=store, now=now)
+    n9_env = run_n9(_n9_inputs(request), at=at, store=store, request=request, now=now)
     envelopes.append(n9_env)
     if n9_env["status"] != "OK":
         body["envelopes"] = envelopes
         body["status"] = n9_env["status"]
         reject_excluded_envelopes(envelopes)
         return body
-    n10_env = run_n10(_n10_inputs(request), at=at, gateway=gateway, request=request, now=now)
+    context_pack = {"intent_id": request.intent_id, "route": "internal_readonly"}
+    n10_env = run_n10(
+        _n10_inputs(request, context_pack),
+        at=at,
+        gateway=gateway,
+        request=request,
+        now=now,
+    )
     envelopes.append(n10_env)
     if n10_env["status"] != "OK" or n10_env["output"] is None:
         body["envelopes"] = envelopes
         body["status"] = n10_env["status"]
         reject_excluded_envelopes(envelopes)
         return body
-    n11_inputs = {
-        "receipt_id": n10_env["output"]["receipt_id"],
-        "state": n10_env["output"]["state"],
-        "grant_ref": n10_env["output"]["grant_ref"],
-        "request_digest": request.digest,
-        "git_candidate_sha": request.git_candidate_sha,
-        "tree_sha": request.tree_sha,
-    }
-    n11_env = run_n11(n11_inputs, at=at)
+    n11_env = run_n11(
+        {"candidate_sha": request.git_candidate_sha, "scope": {"route": "internal_readonly"}},
+        at=at,
+    )
     envelopes.append(n11_env)
     n12_env = run_n12(
         {
-            "receipt_id": n11_inputs["receipt_id"],
-            "builder_id": "builder-selftest",
-            "verifier_id": "not-the-builder",
-            "claimed_state": "NOT_RUN",
-        },
-        at=at,
-    )
-    envelopes.append(n12_env)
-    if n12_env["status"] != "OK":
-        body["envelopes"] = envelopes
-        body["status"] = n12_env["status"]
-        reject_excluded_envelopes(envelopes)
-        return body
-    n13_env = run_n13(
-        {
-            "name": "n13-receipt.json",
-            "record": {
-                "receipt_id": n11_inputs["receipt_id"],
-                "state": n11_env["output"]["state"],
-                "git_candidate_sha": request.git_candidate_sha,
-                "tree_sha": request.tree_sha,
-                "selftest": "builder",
-            },
+            "decisions": [],
+            "evidence": [],
+            "receipts": [{
+                "receipt_id": n10_env["output"]["receipt_id"],
+                "result": n10_env["output"]["result"],
+            }],
+            "failures": [],
         },
         at=at,
         store_root=store.root,
+    )
+    envelopes.append(n12_env)
+    n13_env = run_n13(
+        {
+            "outcome": n10_env["output"]["result"],
+            "verify_state": n11_env["output"]["verdict"],
+            "writeback_state": "OK",
+            "handoff_state": "NOT_READY",
+        },
+        at=at,
     )
     envelopes.append(n13_env)
     reject_excluded_envelopes(envelopes)

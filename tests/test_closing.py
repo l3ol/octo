@@ -46,7 +46,10 @@ def _pack(intent_text_input, intent_output) -> dict:
         "n5": {"claims": ["closing nodes write only to the isolation store"]},
         "n8": {
             "intent": intent_output,
-            "options": json.loads(intent_text_input["text"])["execution_options"],
+            "options": [{
+                **json.loads(intent_text_input["text"])["execution_options"][0],
+                "measurable_acceptance": "PYTHONPATH=. pytest tests/ -q exits 0",
+            }],
         },
     }
 
@@ -100,12 +103,12 @@ def test_standard_run_closes_without_n6_n7_envelopes(tmp_path):
         validate_envelope(envelope)
         assert envelope["inputs_hash"] == inputs_hash(envelope["inputs"])
         assert "DEGRADED_SKIP" not in envelope["status"]
-    assert result["envelopes"][8]["output"]["git_candidate_sha"] == request.git_candidate_sha
-    assert result["envelopes"][8]["output"]["tree_sha"] == request.tree_sha
-    assert result["envelopes"][8]["output"]["verifier"] == "NOT_RUN"
-    assert result["envelopes"][9]["output"]["builder_runtime_pass"] is False
-    assert result["envelopes"][9]["output"]["state"] == "NOT_RUN"
-    written = tmp_path / result["envelopes"][10]["output"]["relative_path"]
+    assert result["envelopes"][8]["output"]["verdict"] == "BLOCKED"
+    assert set(result["envelopes"][8]["output"]) == {"verdict", "evidence", "scope"}
+    assert result["envelopes"][9]["output"]["written"][0]["object"] == "Receipt"
+    assert result["envelopes"][10]["output"]["notify_once"] is True
+    assert result["envelopes"][10]["output"]["state"] == "BLOCKED"
+    written = tmp_path / "capture" / result["envelopes"][9]["output"]["written"][0]["path"]
     assert written.is_file()
     assert store_contains(tmp_path, written)
     assert not (ROOT / "writeback").exists()
@@ -117,41 +120,26 @@ def store_contains(root: Path, path: Path) -> bool:
     return root.resolve() == path.resolve() or root.resolve() in path.resolve().parents
 
 
-def test_n12_claimed_pass_is_blocked():
-    envelope = run_n12(
-        {
-            "receipt_id": "R-1",
-            "builder_id": "builder-selftest",
-            "verifier_id": "builder-selftest",
-            "claimed_state": "PASS",
-        },
-        at=AT,
-    )
-    assert envelope["status"] == "BLOCKED"
-    assert envelope["output"] is None
-    assert envelope["status"] != "PASS"
+def test_n11_builder_pass_is_forbidden():
+    with pytest.raises(ValueError, match="BUILDER_PASS_FORBIDDEN"):
+        run_n11(
+            {"candidate_sha": _git("rev-parse", "HEAD"), "scope": {"route": "internal_readonly"}},
+            at=AT,
+            builder_claims_pass=True,
+        )
 
 
-def test_n13_rejects_escape(tmp_path):
-    with pytest.raises(ValueError, match="isolation store"):
+def test_n13_rejects_old_path_shape():
+    with pytest.raises(ValueError, match="N13_SHAPE_MISMATCH"):
         run_n13(
             {"name": "../outside.json", "record": {"selftest": "builder"}},
             at=AT,
-            store_root=tmp_path,
         )
-    assert not (tmp_path.parent / "outside.json").exists()
 
 
 def test_n11_rejects_file_digest_as_git_candidate():
     with pytest.raises(ValueError, match="40 lowercase hex"):
         run_n11(
-            {
-                "receipt_id": "R-1",
-                "state": "SUCCEEDED",
-                "grant_ref": "g1",
-                "request_digest": "ab" * 32,
-                "git_candidate_sha": "ab" * 32,
-                "tree_sha": _git("rev-parse", "HEAD^{tree}"),
-            },
+            {"candidate_sha": "ab" * 32, "scope": {"route": "internal_readonly"}},
             at=AT,
         )

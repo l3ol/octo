@@ -15,14 +15,7 @@ from octo.grant import S1_GRANT_ACTIONS, AuthorizationRequest, GrantDenied, Gran
 from octo.journal import Blocked, Journal
 from octo.nodes import emit_envelope
 
-N10_INPUT_KEYS = {
-    "action",
-    "grant_ref",
-    "idempotency_key",
-    "request_digest",
-    "git_candidate_sha",
-    "tree_sha",
-}
+N10_INPUT_KEYS = {"action", "grant_ref", "context_pack"}
 
 
 class Gateway:
@@ -121,25 +114,37 @@ def run_n10(
     now=None,
 ) -> dict:
     """N10 envelope. Chat text is not an input and cannot authorize dispatch."""
+    if "context_pack" not in inputs:
+        raise ValueError("CONTEXT_PACK_MISSING")
     if set(inputs) != N10_INPUT_KEYS:
-        raise ValueError("N10 inputs must be the dispatch identity, without chat_text")
-    if "chat_text" in inputs:
-        raise ValueError("chat_text is not authoritative")
+        raise ValueError("FROZEN_KEY_DRIFT")
+    if inputs["grant_ref"] != request.grant_id:
+        raise ValueError("GRANT_REF_NOT_ALLOW")
     result = gateway.execute(request, chat_text="", now=now)
     state = result["state"]
     notes = result.get("notes", "")
+    evidence = list(result.get("evidence_refs") or [])
+    if state == "UNKNOWN_COMMIT":
+        return emit_envelope(
+            node_id="N10",
+            at=at,
+            inputs=dict(inputs),
+            status="BLOCKED",
+            output={
+                "receipt_id": result["receipt_id"],
+                "result": "UNKNOWN_COMMIT",
+                "evidence_refs": evidence,
+            },
+        )
     if state == "BLOCKED":
         status, output = "BLOCKED", None
-    elif state == "DENIED" and notes.startswith("GRANT"):
+    elif state == "DENIED" and str(notes).startswith("GRANT"):
         status, output = "AUTHORIZATION_REQUIRED", None
     elif state == "DENIED":
         status, output = "BLOCKED", None
     else:
-        status, output = "OK", {
-            "state": state,
-            "receipt_id": result["receipt_id"],
-            "request_digest": result["request_digest"],
-            "idempotency_key": result["idempotency_key"],
-            "grant_ref": result.get("grant_id"),
-        }
+        output = {"receipt_id": result["receipt_id"], "result": state, "evidence_refs": evidence}
+        if "result" not in output or "evidence_refs" not in output:
+            raise ValueError("RESULT_OR_EVIDENCE_MISSING")
+        status = "OK"
     return emit_envelope(node_id="N10", at=at, inputs=dict(inputs), status=status, output=output)

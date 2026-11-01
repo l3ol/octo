@@ -60,43 +60,66 @@ def emit_envelope(
     return envelope
 
 
+def _clarification(inputs: dict, *, at: str, intent_id: str) -> dict:
+    output = {
+        "intent_id": intent_id,
+        "normalized_goal": "intent unclear",
+        "expected_output": [
+            {"choice": "restate one observable goal"},
+            {"choice": "stop this request"},
+        ],
+        "project": "",
+        "state": "NEEDS_CLARIFICATION",
+    }
+    return emit_envelope(
+        node_id="N1",
+        at=at,
+        inputs=inputs,
+        status="NEEDS_CLARIFICATION",
+        output=output,
+    )
+
+
 def run_n1(inputs: Mapping[str, Any], *, at: str) -> dict:
-    """N1 input ``{text, source}``; output intent fields from the CCI text."""
+    """N1 input ``{text, source}``. Unclear text is NEEDS_CLARIFICATION, never ACTIVE."""
     _exact_keys(inputs, {"text", "source"})
     text = inputs["text"]
     source = inputs["source"]
-    if not isinstance(text, str) or not isinstance(source, dict):
-        raise ValueError("N1 text and source are required")
+    if not isinstance(source, dict) or not source:
+        return emit_envelope(
+            node_id="N1",
+            at=at,
+            inputs=dict(inputs),
+            status="BLOCKED",
+            output={
+                "intent_id": "intent-unspecified",
+                "normalized_goal": "source missing",
+                "expected_output": "",
+                "project": "",
+                "state": "BLOCKED",
+            },
+        )
+    if not isinstance(text, str) or not text.strip():
+        return _clarification(dict(inputs), at=at, intent_id="intent-unspecified")
     try:
         document = json.loads(text)
     except json.JSONDecodeError:
-        document = {}
-    if not isinstance(document, dict):
-        document = {}
-    dispatch = document.get("dispatch_id") or "unscoped"
+        document = None
+    if not isinstance(document, dict) or not document.get("dispatch_id"):
+        return _clarification(dict(inputs), at=at, intent_id="intent-unspecified")
     scope = document.get("scope") if isinstance(document.get("scope"), dict) else {}
     nodes = scope.get("nodes") if isinstance(scope.get("nodes"), list) else []
+    goal = f"Standard {scope.get('route', 'internal_readonly')} on {scope.get('implementation_branch', 'unspecified')}"
+    if nodes:
+        goal = f"{goal}; nodes={','.join(str(node) for node in nodes)}"
     output = {
-        "intent_id": f"intent-{dispatch}",
-        "normalized_goal": (
-            f"Standard {scope.get('route', 'internal_readonly')} "
-            f"on {scope.get('implementation_branch', 'unspecified')}"
-        ),
+        "intent_id": f"intent-{document['dispatch_id']}",
+        "normalized_goal": goal,
         "expected_output": document.get("stop") or "",
         "project": document.get("product") or "",
         "state": "ACTIVE",
     }
-    if nodes:
-        output["normalized_goal"] = (
-            f"{output['normalized_goal']}; nodes={','.join(str(node) for node in nodes)}"
-        )
-    return emit_envelope(
-        node_id="N1",
-        at=at,
-        inputs=dict(inputs),
-        status="OK",
-        output=output,
-    )
+    return emit_envelope(node_id="N1", at=at, inputs=dict(inputs), status="OK", output=output)
 
 
 def run_n2(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | None = None) -> dict:
@@ -105,11 +128,45 @@ def run_n2(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | Non
     if not isinstance(inputs["intent_id"], str) or not inputs["intent_id"]:
         raise ValueError("intent_id required")
     material = dict(bound or {})
+    gaps = list(material.get("gaps", []))
+    decisions = []
+    for index, row in enumerate(material.get("current_decisions", [])):
+        if isinstance(row, str):
+            decisions.append({
+                "decision_id": f"d{index}",
+                "content": row,
+                "decided_at": at,
+                "decider": "TEST_FIXTURE",
+                "supersedes": None,
+            })
+        else:
+            decisions.append(dict(row))
+    evidence = []
+    for index, row in enumerate(material.get("key_evidence", [])):
+        if isinstance(row, str):
+            evidence.append({
+                "evidence_id": f"e{index}",
+                "uri_or_hash": row,
+                "freshness": "fresh",
+                "collected_at": at,
+            })
+        else:
+            evidence.append(dict(row))
+    open_states = list(material.get("open_states", ["N6/N7 not run this stage"]))
+    status = "OK"
+    if gaps or material.get("source_unavailable"):
+        status = "PARTIAL"
+        for gap in gaps:
+            label = f"gap:{gap}"
+            if label not in open_states:
+                open_states.append(label)
+        if not gaps:
+            open_states.append("gap:SOURCE_UNAVAILABLE")
     output = {
         "intent_id": inputs["intent_id"],
-        "current_decisions": list(material.get("current_decisions", [])),
-        "key_evidence": list(material.get("key_evidence", [])),
-        "open_states": list(material.get("open_states", ["N6/N7 not run this stage"])),
+        "current_decisions": decisions,
+        "key_evidence": evidence,
+        "open_states": open_states,
         "prohibitions": list(material.get("prohibitions", [])),
         "assembled_at": material.get("assembled_at", at),
         "sources": list(material.get("sources", [])),
@@ -118,9 +175,15 @@ def run_n2(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | Non
         node_id="N2",
         at=at,
         inputs={"intent_id": inputs["intent_id"]},
-        status="OK",
+        status=status,
         output=output,
     )
+
+
+def guard_consequential(pack_status: str, action: str) -> None:
+    """A consequential action must not proceed on a PARTIAL context pack."""
+    if pack_status == "PARTIAL" and action not in {"internal_readonly", "read"}:
+        raise ValueError("CONSEQUENTIAL_ON_PARTIAL")
 
 
 def run_n3(inputs: Mapping[str, Any], *, at: str) -> dict:
@@ -131,31 +194,36 @@ def run_n3(inputs: Mapping[str, Any], *, at: str) -> dict:
         raise ValueError("N3 intent and context_pack must be objects")
     if not isinstance(signal, dict):
         raise ValueError("N3 deviation signal must be an object")
-    kill = signal.get("kill_line_ref", signal.get("kill_line"))
+    kill = signal.get("kill_line", signal.get("kill_line_ref", "SOURCE_UNAVAILABLE"))
     if kill in (None, "", "SOURCE_UNAVAILABLE"):
         output = {
             "still_worth_it": True,
-            "reason": (
-                "kill_line SOURCE_UNAVAILABLE; frozen worth judgment continues. "
-                "payload TEST_FIXTURE"
-            ),
+            "reason": "criteria insufficient; frozen worth judgment continues. TEST_FIXTURE",
             "kill_line": "SOURCE_UNAVAILABLE",
-            "fixture": "TEST_FIXTURE",
         }
-        status = "OK"
-    else:
+    elif isinstance(kill, str):
+        raise ValueError("NO_TOUCH_COMPARISON")
+    elif not isinstance(kill, dict) or kill.get("label") != "TEST_FIXTURE" or "threshold" not in kill:
+        raise ValueError("KILL_LINE_PRESENCE_ONLY")
+    elif "observed" not in signal:
+        raise ValueError("NO_TOUCH_COMPARISON")
+    elif signal["observed"] >= kill["threshold"]:
         output = {
             "still_worth_it": False,
-            "reason": "kill line is present; continuation is not assumed. payload TEST_FIXTURE",
+            "reason": "signal crosses TEST_FIXTURE kill_line. Chief choice: continue or stop. Project is not killed.",
             "kill_line": kill,
-            "fixture": "TEST_FIXTURE",
         }
-        status = "OK"
+    else:
+        output = {
+            "still_worth_it": True,
+            "reason": "signal is below TEST_FIXTURE kill_line. Presence alone did not decide.",
+            "kill_line": kill,
+        }
     return emit_envelope(
         node_id="N3",
         at=at,
         inputs=dict(inputs),
-        status=status,
+        status="OK",
         output=output,
     )
 
@@ -208,13 +276,23 @@ def run_n5(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | Non
                 gaps.append(claim)
             continue
         verdict = row.get("verdict")
+        evidence_ref = row.get("evidence_ref") or ""
+        freshness = row.get("freshness", "")
+        if freshness in {"stale", "expired"}:
+            verdict = "STALE"
+        if verdict == "FACT" and (not evidence_ref or freshness != "fresh"):
+            raise ValueError("FACT_WITHOUT_EVIDENCE")
         if verdict not in _VERDICTS:
             raise ValueError("verdict must be FACT, CLAIM, or STALE")
+        if verdict == "STALE":
+            token = f"recollect:{claim}"
+            if token not in gaps:
+                gaps.append(token)
         facts.append({
             "claim": claim,
             "verdict": verdict,
-            "evidence_ref": row.get("evidence_ref", ""),
-            "freshness": row.get("freshness", "TEST_FIXTURE"),
+            "evidence_ref": evidence_ref,
+            "freshness": freshness or "TEST_FIXTURE",
         })
     return emit_envelope(
         node_id="N5",
@@ -238,13 +316,27 @@ def run_n8(inputs: Mapping[str, Any], *, at: str) -> dict:
             raise ValueError("execution option must be an object")
         if option.get("node_id") in EXCLUDED_NODE_IDS or "n6_output" in option:
             raise ValueError("N6 output cannot be used as N8 options")
+    acceptance = []
+    for option in options:
+        proposed = option.get("measurable_acceptance", option.get("acceptance", option.get("description", "")))
+        if proposed == option.get("id"):
+            raise ValueError("OPTION_ID_AS_ACCEPTANCE")
+        if isinstance(proposed, str) and _measurable(proposed):
+            acceptance.append(proposed)
+        elif str(proposed).strip().lower() == "works well":
+            return emit_envelope(
+                node_id="N8",
+                at=at,
+                inputs={"intent": dict(inputs["intent"]), "options": json.loads(json.dumps(options))},
+                status="NEEDS_CLARIFICATION",
+                output={"mvp": {"scope": {"option_ids": [option.get("id")]}, "acceptance": [], "not_in_scope": ["N6", "N7"]}},
+            )
+    if not acceptance:
+        raise ValueError("ACCEPTANCE_NOT_MEASURABLE")
     output = {
         "mvp": {
-            "scope": {
-                "route": "Standard internal_readonly",
-                "option_ids": [option.get("id") for option in options],
-            },
-            "acceptance": [str(option.get("id", "")) for option in options],
+            "scope": {"route": "Standard internal_readonly", "option_ids": [option.get("id") for option in options]},
+            "acceptance": acceptance,
             "not_in_scope": ["N6", "N7"],
         }
     }
@@ -255,3 +347,12 @@ def run_n8(inputs: Mapping[str, Any], *, at: str) -> dict:
         status="OK",
         output=output,
     )
+
+
+def _measurable(text: str) -> bool:
+    if not isinstance(text, str):
+        return False
+    lowered = text.strip().lower()
+    if lowered in {"", "works well"}:
+        return False
+    return any(token in lowered for token in ("exit", "sha256", "pytest", "bytes", "==", ">=", "count"))

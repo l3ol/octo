@@ -14,17 +14,7 @@ from typing import Any, Mapping
 from octo.grant import SIX_VALIDATORS, AuthorizationRequest, GrantDenied, GrantStore
 from octo.nodes import emit_envelope
 
-N9_INPUT_KEYS = {
-    "actor",
-    "action",
-    "resource",
-    "parameters",
-    "intent_id",
-    "idempotency_key",
-    "git_candidate_sha",
-    "tree_sha",
-    "grant_ref",
-}
+N9_INPUT_KEYS = {"action", "grant_id", "request_digest"}
 
 
 def precheck(store: GrantStore, request: AuthorizationRequest, *, now=None) -> dict[str, Any]:
@@ -63,33 +53,41 @@ def precheck(store: GrantStore, request: AuthorizationRequest, *, now=None) -> d
     }
 
 
-def run_n9(inputs: Mapping[str, Any], *, at: str, store: GrantStore, now=None) -> dict:
-    """Envelope for the N9 precheck. ``inputs`` are the hashed authorization fields."""
+def run_n9(inputs: Mapping[str, Any], *, at: str, store: GrantStore, request: AuthorizationRequest, now=None) -> dict:
+    """Frozen N9 envelope. Inputs are exactly action, grant_id, request_digest."""
     if set(inputs) != N9_INPUT_KEYS:
-        raise ValueError(f"N9 input keys {sorted(inputs)} != {sorted(N9_INPUT_KEYS)}")
-    request = AuthorizationRequest(
-        actor=inputs["actor"],
-        action=inputs["action"],
-        resource=inputs["resource"],
-        parameters=dict(inputs["parameters"]),
-        intent_id=inputs["intent_id"],
-        idempotency_key=inputs["idempotency_key"],
-        git_candidate_sha=inputs["git_candidate_sha"],
-        tree_sha=inputs["tree_sha"],
-        grant_id=inputs["grant_ref"],
-    )
+        raise ValueError("FROZEN_KEY_DRIFT")
+    if inputs["action"] != request.action or inputs.get("grant_id") != request.grant_id:
+        raise ValueError("FROZEN_KEY_DRIFT")
+    if inputs["request_digest"] != request.digest:
+        output = {
+            "verdict": "DENY",
+            "reason": "ALLOW_ON_DIGEST_MISMATCH grant_scope_draft action=internal_readonly",
+            "grant_ref": None,
+        }
+        return emit_envelope(node_id="N9", at=at, inputs=dict(inputs), status="AUTHORIZATION_REQUIRED", output=output)
     result = precheck(store, request, now=now)
     if result["status"] != "OK":
-        output = None
+        reason = result.get("reason") or "DENY"
+        output = {
+            "verdict": "DENY",
+            "reason": f"{reason}; grant_scope_draft action=internal_readonly amount_limit=0",
+            "grant_ref": None,
+        }
+        if not output["reason"]:
+            raise ValueError("DENY_WITHOUT_REASON")
+        if "grant_scope_draft" not in output["reason"]:
+            raise ValueError("GRANT_DRAFT_MISSING")
         status = "AUTHORIZATION_REQUIRED"
     else:
         status = "OK"
         output = {
+            "verdict": "ALLOW",
+            "reason": result.get("reason") or "N9_SIX_OK",
             "grant_ref": result["grant_ref"],
-            "decision": "ALLOW",
-            "precheck": "N9_MIN",
-            "validators": list(SIX_VALIDATORS),
         }
+    if set(output) != {"verdict", "reason", "grant_ref"}:
+        raise ValueError("FROZEN_KEY_DRIFT")
     return emit_envelope(
         node_id="N9",
         at=at,
