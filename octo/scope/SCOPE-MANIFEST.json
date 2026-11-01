@@ -81,7 +81,9 @@
     ],
     "writable_binds": [
       "/iso"
-    ]
+    ],
+    "freeze_status": "NONFINAL_HOLD_AE",
+    "final_sha": false
   },
   "kind": "SCOPE-MANIFEST",
   "nodes": [

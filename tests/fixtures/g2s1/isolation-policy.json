@@ -2,6 +2,8 @@
   "as_pid_1": true,
   "dev": "bwrap --dev + --remount-ro /dev",
   "die_with_parent": true,
+  "final_sha": false,
+  "freeze_status": "NONFINAL_HOLD_AE",
   "full_sandbox": false,
   "kind": "isolation_policy",
   "limits": [

@@ -97,6 +97,8 @@ def test_product_scope_and_three_column_fixture_digest_recompute():
     assert strategy["readiness"] == "HARDENED_RECIPE_ACHIEVED_RUNNER_CONTRACT_DEPENDENT"
     assert strategy["runtime_pass"] is False
     assert strategy["full_sandbox"] is False
+    assert strategy["final_sha"] is False
+    assert strategy["freeze_status"] == "NONFINAL_HOLD_AE"
     assert strategy["unshare"] == ["net", "pid"]
     assert strategy["as_pid_1"] is True
     assert strategy["die_with_parent"] is True
