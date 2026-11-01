@@ -1,9 +1,8 @@
 """Pytest stub that refuses outbound socket connects.
 
-This is an application-level monkeypatch only. It is not a process,
-container, or sand-egress deny. Ops preflight for network isolation stays
-NOT_READY. Nothing here installs a firewall, expands privileges, or writes
-a capability report that claims deny-egress.
+This is an application-level monkeypatch only. It is not the process-level
+bwrap network namespace, and it is not a complete sandbox. Nothing here
+installs a firewall, expands privileges, or signs runtime_pass.
 
 On-disk isolation in this candidate is Unix file permissions on the
 caller-supplied store (for example mode 0o600 records). This stub is a

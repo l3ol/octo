@@ -48,7 +48,23 @@ def test_product_scope_and_three_column_fixture_digest_recompute():
     assert "N6" in scope["exclusions"]["nodes_not_emitted"]
     assert scope["acceptance"]
     assert scope["test_commands"] == ["PYTHONPATH=. pytest tests/ -q"]
-    assert scope["isolation_strategy"]["deny_egress"] == "NOT_READY"
+    strategy = scope["isolation_strategy"]
+    policy = json.loads((ROOT / "tests/fixtures/g2s1/isolation-policy.json").read_text(encoding="utf-8"))
+    assert {key: value for key, value in policy.items() if key != "kind"} == strategy
+    assert strategy["readiness"] == "READY_FOR_ISOLATED_RUN"
+    assert strategy["readiness_conditional"] is True
+    assert strategy["runtime_pass"] is False
+    assert strategy["full_sandbox"] is False
+    assert strategy["deny_egress"]["claimed"] is True
+    assert strategy["deny_egress"]["method"] == "bwrap 0.12.0 --unshare-net"
+    assert strategy["deny_egress"]["connect_errno"] == 101
+    assert strategy["deny_egress"]["app_layer_equals_deny_egress"] is False
+    assert strategy["ops_evidence"]["md_sha256"] == (
+        "dca8c880e1e458afd52ecc687c417366ce9af7eb069aaf0a7cb79005c4ff089b"
+    )
+    assert strategy["ops_evidence"]["json_sha256"] == (
+        "64a817afa5643940104df1cab7e64628102a139de3fe38be5ce43aab87039086"
+    )
     assert scope["reviewer_separation"]["builder_may_sign_pass"] is False
     raw_manifest = (ROOT / "SOURCE-IMPORT-MANIFEST-G2-S1.json").read_bytes()
     assert scope["source_import_manifest"]["sha256"] == hashlib.sha256(raw_manifest).hexdigest()

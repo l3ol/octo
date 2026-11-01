@@ -39,11 +39,42 @@
     "readme": "c4ff0e5fbf494ed71be449ec3b45e301b56d6ce9ff3b79c2018759ed71232555"
   },
   "isolation_strategy": {
-    "deny_egress": "NOT_READY",
-    "network_control": "pytest socket stub only; not process or container deny-egress",
+    "caveats": [
+      "Landlock ABI=6 rules NOT applied",
+      "seccomp NOT_TRIED_NO_LIB",
+      "APP_LAYER socket stub is not deny-egress",
+      "not a complete sandbox",
+      "runtime_pass=false"
+    ],
+    "deny_egress": {
+      "app_layer_equals_deny_egress": false,
+      "claimed": true,
+      "connect_errno": 101,
+      "connect_errno_name": "ENETUNREACH",
+      "level": "process network namespace via unprivileged user namespace",
+      "method": "bwrap 0.12.0 --unshare-net"
+    },
+    "filesystem": {
+      "candidate": "EROFS",
+      "dev": "bwrap private ephemeral tmpfs; not host-persistent",
+      "host_persistent_writable": "/iso"
+    },
+    "full_sandbox": false,
+    "hard_conditions": [
+      "close_fds / forbid pass_fds",
+      "TMPDIR must be under /iso"
+    ],
     "no_install": true,
     "no_privilege_expansion": true,
-    "ops_preflight": "NOT_READY",
+    "no_sudo": true,
+    "ops_evidence": {
+      "json_sha256": "64a817afa5643940104df1cab7e64628102a139de3fe38be5ce43aab87039086",
+      "md_sha256": "dca8c880e1e458afd52ecc687c417366ce9af7eb069aaf0a7cb79005c4ff089b"
+    },
+    "readiness": "READY_FOR_ISOLATED_RUN",
+    "readiness_conditional": true,
+    "reviewer_pass": false,
+    "runtime_pass": false,
     "store": "caller-supplied isolation directory",
     "unix_permissions": "0600 records inside that store",
     "writeback": "external isolated test store only"
