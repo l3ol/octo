@@ -13,7 +13,9 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # experiment_id=CI-UBUNTU-2204-COMPAT-t280
+    # Official label only. Not a self-hosted runner and not a guarantee of user namespaces.
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout candidate commit
         uses: actions/checkout@v4
@@ -40,7 +42,52 @@ jobs:
           CHECKOUT_REF: ${{ github.event.pull_request.head.sha || github.sha }}
         run: PYTHONPATH=. python -m gates.workflow_proof
 
+      - name: Record runner image kernel and user namespace
+        shell: bash
+        run: |
+          set +e
+          image_id="$(. /etc/os-release && printf '%s' "${VERSION_ID:-unknown}")"
+          image_name="$(. /etc/os-release && printf '%s' "${PRETTY_NAME:-unknown}")"
+          kernel="$(uname -r)"
+          unshare_err="$(unshare --user --map-root-user --mount true 2>&1)"
+          unshare_rc=$?
+          set -e
+          uid_map=ok
+          if printf '%s' "$unshare_err" | grep -q 'uid_map'; then
+            uid_map=EPERM
+          fi
+          echo "experiment_id=CI-UBUNTU-2204-COMPAT-t280"
+          echo "ci_image_observed=${image_id} ${image_name} ImageOS=${ImageOS:-unset}"
+          echo "ci_kernel_observed=${kernel}"
+          echo "ci_capability_observed unshare_rc=${unshare_rc} uid_map=${uid_map} pytest_entered=false"
+          printf '%s\n' "$unshare_err"
+          if [ "$unshare_rc" -ne 0 ]; then
+            echo "gap_class=ENV_BOUNDARY"
+            echo "CI-JOB-GREEN=UNMET"
+            echo "runtime_pass=false"
+          fi
+
       - name: Run tests
+        id: tests
+        env:
+          GATES_CI_MARKER: ${{ runner.temp }}/gates-pytest-entered
         # The selftest command is the argv of the exec-context entry.
         # A separate probe is not this step.
         run: PYTHONPATH=. bash gates/enter_exec_ctx.sh python -m gates.selftest
+
+      - name: Record whether pytest started
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "${RUNNER_TEMP}/gates-pytest-entered" ]; then
+            entered=true
+          else
+            entered=false
+          fi
+          echo "experiment_id=CI-UBUNTU-2204-COMPAT-t280"
+          echo "ci_capability_observed pytest_entered=${entered} test_outcome=${{ steps.tests.outcome }}"
+          echo "runtime_pass=false"
+          if [ "$entered" != true ]; then
+            echo "gap_class=ENV_BOUNDARY"
+            echo "CI-JOB-GREEN=UNMET"
+          fi

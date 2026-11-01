@@ -13,6 +13,7 @@ if [ -f "$OPS_ENTER" ]; then
   export GATES_HOST_MNT_NS="$(readlink /proc/self/ns/mnt)"
   export GATES_HOST_UID="$(id -u)"
   export GATES_ENTER_VIA=ops-enter
+  export GATES_RDONLY_NS=1
   exec bash "$OPS_ENTER" "$@"
 fi
 if [ "${GATES_RDONLY_NS:-}" != 1 ]; then

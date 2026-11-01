@@ -54,8 +54,32 @@ def _syscalls() -> tuple[int, int]:
     return _SYSCALLS[machine]
 
 
+def harness_ns_label(env: dict[str, str] | None = None) -> str:
+    """STACK_OK harness_ns. Twin sets GATES_RDONLY_NS; OPS-ENTER sets OPS_NS_ST_RDONLY_EXPECTED."""
+    source = os.environ if env is None else env
+    if source.get(NS_ENV) == "1" or source.get("OPS_NS_ST_RDONLY_EXPECTED") == "1":
+        return "1"
+    return "0"
+
+
 def namespace_active() -> bool:
-    return os.environ.get(NS_ENV) == "1" or os.environ.get("OPS_NS_ST_RDONLY_EXPECTED") == "1"
+    return harness_ns_label() == "1"
+
+
+def classify_harness_label(*, harness_ns: str, independent_ns_proven: bool, runtime_pass: bool) -> str:
+    """Label versus namespace evidence. Never a PASS and never a containment gap."""
+    if runtime_pass:
+        return "PREMATURE_PASS"
+    if harness_ns == "0" and independent_ns_proven:
+        return "LABEL_MISREPORT"
+    return "LABEL_ALIGNED"
+
+
+def classify_ci_uid_map(text: str) -> str:
+    """GitHub runner uid_map denial is an environment boundary, not this label bug."""
+    if "uid_map" in text and "Operation not permitted" in text:
+        return "ENV_BOUNDARY"
+    return "OTHER"
 
 
 def _mnt_ns() -> str:

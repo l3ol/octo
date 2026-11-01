@@ -21,9 +21,13 @@ class _Count:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from gates.readonly_ns import NS_ENV, ensure_harness_namespace
+    from gates.readonly_ns import ensure_harness_namespace, harness_ns_label
 
     ensure_harness_namespace()
+    marker = os.environ.get("GATES_CI_MARKER")
+    if marker:
+        with open(marker, "w", encoding="utf-8") as handle:
+            handle.write("pytest_entered=1\n")
     import pytest
 
     counter = _Count()
@@ -36,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         f"command='PYTHONPATH=. python -m gates.selftest' "
         f"exit={code} passed={counter.passed} failed={counter.failed} "
         "independent_acceptance=false runtime_pass=false "
-        f"harness_ns={os.environ.get(NS_ENV, '0')}"
+        f"harness_ns={harness_ns_label()}"
     )
     return int(code)
 
