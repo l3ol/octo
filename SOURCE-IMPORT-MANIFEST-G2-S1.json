@@ -1,0 +1,187 @@
+{
+  "kind": "SOURCE-IMPORT-MANIFEST",
+  "dispatch_id": "PRODUCT-BUILD-2026-11-01-G2-S1-TB-01",
+  "task_id": "T-02",
+  "status": "COMPLETE",
+  "created_at": "2026-11-01T21:02:09+08:00",
+  "timezone": "Asia/Shanghai",
+  "source_package_sha256": "4594859bbddf6c804cfbdc029717f19357c7197cb7ad997c6735299dceacfc4b",
+  "source_delivery_manifest": "…/release-tb-01/SOURCE-DELIVERY-MANIFEST-G2-S1.json",
+  "source_repo": "/Users/auroral/dev/octo",
+  "source_commit": "4caf7ea4838f7b5aefff763abf9607d3d426c4e6",
+  "target_repo": "l3ol/octo",
+  "target_base_sha": "5443c9b4dde7fc208a0a72457c87904650829f77",
+  "implementation_branch": "dev/product-s1-standard-loop",
+  "implementation_branch_tip_at_review": "5443c9b4dde7fc208a0a72457c87904650829f77",
+  "target_structure_note": {
+    "octo_on_branch": [
+      "__init__.py",
+      "backup.py",
+      "models.py",
+      "router.py"
+    ],
+    "absent": [
+      "objects.py",
+      "grant.py",
+      "gateway.py",
+      "journal.py",
+      "governor.py",
+      "runner.py"
+    ],
+    "t01_side_branch": "cursor/g2-s1-spec-deliverables-c59d@425bd5d5720847ef3ad12b4c1eae37a78c9fe1f2 (not yet on implementation branch)"
+  },
+  "verification": {
+    "method": "Independent recompute from controlled-source-candidates.json content (A2-3); Mac git show not used this turn — package already DELIVERED_AND_VERIFIED_6_OF_6 by Chief/TB.",
+    "content_sha256": "6/6 MATCH",
+    "git_blob_sha1": "6/6 MATCH",
+    "bytes": "6/6 MATCH",
+    "path_and_commit": "6/6 MATCH vs SOURCE-DELIVERY-MANIFEST"
+  },
+  "exclusions_check": {
+    "pilot.py": "not in package",
+    "backup.py": "not imported (runner skip; target backup.py left untouched)",
+    "brain/": "no brain tree/instances imported; grant/journal/runner brain paths excluded or rewritten at adapt",
+    "DB": "no octo.db or DB dumps imported",
+    "historical_Receipt_Grant_instances": "none present in package (code only)",
+    "private_data_untracked_docs_credentials_machine_config": "no import; grant .founder-key minting and runner macOS env skipped",
+    "history_merge_rebase": "not performed",
+    "main_or_merge_api": "not touched"
+  },
+  "decision_counts": {
+    "adapt": 5,
+    "adopt": 0,
+    "skip": 1
+  },
+  "entries": [
+    {
+      "src_path": "octo/objects.py",
+      "source_blob_sha": "893d529fdf5649bb20ebc8364e0d87c4b8d590e2",
+      "bytes": 4763,
+      "sha256": "09afd2f1813964851b25ac934d9176940bed957d391ce55ea184899d8e5b66a9",
+      "lines": 160,
+      "src_repo": "mac-local",
+      "src_commit": "4caf7ea4838f7b5aefff763abf9607d3d426c4e6",
+      "decision": "adapt",
+      "dst_path": "octo/objects.py",
+      "also_touches": [
+        "octo/models.py"
+      ],
+      "summary": "五对象 Object 体系 + canonical/digest/identifier/sha256/from_dict；字段形状与 GH models.py（PRD §5）不同。",
+      "change_summary": "移植校验与序列化原语；字段对齐 T-01 envelope／现有 models，非整文件覆盖 models.py。",
+      "reason": "计划 N5：Intent/Evidence 原语→envelope。目标仓已有 models.py，需适配而非 adopt。",
+      "exclude_from_import": [],
+      "reviewer_note": "T-03 消费；不得把 Mac 字段形状当冻结 PRD。"
+    },
+    {
+      "src_path": "octo/grant.py",
+      "source_blob_sha": "6939289356ea05865948ff28f4f6c4ef15d9458e",
+      "bytes": 9491,
+      "sha256": "fb03dfd28e66f540c3f498f96bb8842eaa4cd795ec2de9d88028ad3878dc0310",
+      "lines": 201,
+      "src_repo": "mac-local",
+      "src_commit": "4caf7ea4838f7b5aefff763abf9607d3d426c4e6",
+      "decision": "adapt",
+      "dst_path": "octo/grant.py",
+      "summary": "GrantStore.validate 六项边界校验 + inside/safe_path/write_once；含 FOUNDER_LOCAL_CLI 签发 main 与 brain/grants/.founder-key。",
+      "change_summary": "移植六项 validator 与路径安全原语供 N9；签发 CLI、密钥铸造、brain/grants 默认路径不入 candidate；按 A2-4 仅静态模板，运行时 Grant 外置。",
+      "reason": "N9 六项真实校验来源；禁止整包导入凭证路径与 Founder 签发入口。",
+      "exclude_from_import": [
+        "brain/grants 默认目录",
+        ".founder-key 读写/铸造",
+        "main() FOUNDER_LOCAL_CLI 签发/吊销",
+        "任何历史 Grant 实例"
+      ],
+      "reviewer_note": "issued_via／TEST_FIXTURE 绑定须按 A2-4 改写；不得把 FOUNDER_LOCAL_CLI 当生产授权。"
+    },
+    {
+      "src_path": "octo/gateway.py",
+      "source_blob_sha": "e87510f351bde683faef50ce685c620c625b1b76",
+      "bytes": 7203,
+      "sha256": "016a583b64e162e0fb64138d952547ab8a863bebf029e29c72c16ba5d50923d9",
+      "lines": 132,
+      "src_repo": "mac-local",
+      "src_commit": "4caf7ea4838f7b5aefff763abf9607d3d426c4e6",
+      "decision": "adapt",
+      "dst_path": "octo/gateway.py",
+      "summary": "Request（含 request_digest）+ Gateway.execute：N9 预检、幂等、UNKNOWN_COMMIT→reconcile 不盲重试。",
+      "change_summary": "移植 Request.digest／idempotency／UNKNOWN_COMMIT 编排供 N10；存储绑定从 journal.brain 改为隔离 store；chat_text 无权威保持。",
+      "reason": "计划 N5：执行入口/幂等→N10。",
+      "exclude_from_import": [
+        "对 Mac brain 路径的硬绑定",
+        "WP1 本机 actor 假设原样"
+      ],
+      "reviewer_note": "依赖 journal.reconcile；与 T-07 一并适配。"
+    },
+    {
+      "src_path": "octo/journal.py",
+      "source_blob_sha": "a0ead0b8b56c9915d83c0e50bfad85dc8f972e63",
+      "bytes": 13834,
+      "sha256": "52931e505630662a61de1c50c83b4f5b41c0b67909faade6235d879256a1c51e",
+      "lines": 270,
+      "src_repo": "mac-local",
+      "src_commit": "4caf7ea4838f7b5aefff763abf9607d3d426c4e6",
+      "decision": "adapt",
+      "dst_path": "octo/journal.py",
+      "summary": "append-only Journal：record／apply／reconcile／verify_audit；默认 brain/ + sqlite octo.db + refs/octo/audit。",
+      "change_summary": "移植 reconcile 与 UNKNOWN_COMMIT 不盲重试、幂等 effects ledger 原语；存储根改为外置 isolation store；不导入 brain/、不提交 DB／Receipt 实例、不把 git audit writeback 原样绑到产品仓。",
+      "reason": "计划 N5：reconcile、UNKNOWN_COMMIT→N10/N11。A2-3/A2-4/A2-6 禁 brain/DB/历史 Receipt。",
+      "exclude_from_import": [
+        "brain/ 目录树与 octo.db",
+        "历史 Receipt/事件行",
+        "refs/octo/audit 本机链原样迁入",
+        "platform.node 环境指纹冒充生产"
+      ],
+      "reviewer_note": "SQLite ledger 算法可复用，路径与 git attest 必须隔离化。"
+    },
+    {
+      "src_path": "octo/governor.py",
+      "source_blob_sha": "4e1bb72757746483ea1d34f3da6c6db5caaaf12f",
+      "bytes": 1699,
+      "sha256": "099b757c1be7face0bf048510e11080dd21a5929d636a4e1d08ee8ebe2349d44",
+      "lines": 51,
+      "src_repo": "mac-local",
+      "src_commit": "4caf7ea4838f7b5aefff763abf9607d3d426c4e6",
+      "decision": "adapt",
+      "dst_path": "octo/router.py",
+      "also_may_add": [
+        "octo/governor.py"
+      ],
+      "summary": "POLICY + ROUTES(Fast/Standard/Full 节点元组) + FULL_ACTIONS/LOCAL_ACTIONS + Governor.route/check_action/check_outcome。",
+      "change_summary": "按 A2-5／冻结 IO 改为 action_type 路由，删除 GH router.py 复杂度定档且不留兼容分支；ROUTES 仅复用源非冻结依据；未知/升档/需 N6N7 → BLOCKED 或 AUTHORIZATION_REQUIRED（不新增 DEGRADED_SKIP_N6N7 状态）。",
+      "reason": "计划 N5：ROUTES 原语→Router。目标仓 router.py 仍按 complexity，必须替换。",
+      "exclude_from_import": [
+        "将 ROUTES 元组当作冻结 PRD",
+        "复杂度兼容分支"
+      ],
+      "reviewer_note": "T-04 消费；Denied/POLICY 可保留辅助模块。"
+    },
+    {
+      "src_path": "octo/runner.py",
+      "source_blob_sha": "efea04c7739d81c7cb19189ed9cfcbafa9272587",
+      "bytes": 11272,
+      "sha256": "697412405b6f4990b2810b2adf50e951ac172e21313aff03c5724f779685c176",
+      "lines": 241,
+      "src_repo": "mac-local",
+      "src_commit": "4caf7ea4838f7b5aefff763abf9607d3d426c4e6",
+      "decision": "skip",
+      "dst_path": null,
+      "summary": "WP3 只读任务队列：brain/tasks 编排、硬编码 macOS PATH/HOME、钉死 TEST_SOURCE SHA、依赖 backup.py。",
+      "change_summary": "本阶段不移植。Standard 最小环编排由 gateway/journal + 节点实现覆盖；无必需编排片段超出排除边界。",
+      "reason": "逐项审查后：强绑 brain/、本机配置、backup.py（排除清单）、与 G2-S1 N1–N13 无直接验收映射。",
+      "exclude_from_import": [
+        "整文件",
+        "brain/tasks|receipts",
+        "macOS /private/tmp 与 /opt/homebrew PATH",
+        "TEST_SOURCE 钉死表",
+        "对 backup.py 依赖"
+      ],
+      "reviewer_note": "计划允许审查后选取片段；本轮选取为空＝skip。"
+    }
+  ],
+  "prohibitions_observed": [
+    "No wholesale package copy",
+    "No merge/rebase of two histories",
+    "No Path B / main write / merge API",
+    "A2 priority over conflicting plan wording (no new DEGRADED_SKIP_N6N7 status)"
+  ]
+}
