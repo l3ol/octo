@@ -1,0 +1,12 @@
+{
+  "tasks": {
+    "GATES-BUILD-2026-11-01": {
+      "status": "active",
+      "allowed_paths": ["gates/**", "tests/gates/**"]
+    },
+    "GATES-CLOSED-EXAMPLE": {
+      "status": "closed",
+      "allowed_paths": ["src/**"]
+    }
+  }
+}
