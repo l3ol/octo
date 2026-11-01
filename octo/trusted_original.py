@@ -38,7 +38,9 @@ from octo.g3_review import product_scope_digest
 from octo.objects import digest
 
 TA_REVIEWER_ID = "agt_6ae61c44e54081918e81a0adea556ef8"
+ORIGINAL_AGENT_ID = TA_REVIEWER_ID
 ORIGINAL_REVIEWER_SESSION_ID = "6ae6216e-bbec-83e8-87dc-c3edd9027bcc"
+ORIGINAL_SESSION_ID = ORIGINAL_REVIEWER_SESSION_ID
 REGISTRY_ENV = "OCTO_TRUSTED_ORIGINAL_ROOT"
 FIXTURE_DIGEST_ENV = "OCTO_FIXTURE_DIGEST"
 CANDIDATE_ROOT = Path(__file__).resolve().parents[1]
@@ -197,13 +199,11 @@ def open_registry(root: Path | None, *, store_root: Path | None = None) -> ReadO
         return Empty(blocked)
     assert root is not None
     index = root / "registry.json"
-    if index.is_symlink():
-        return Empty("ROOT_UNAVAILABLE")
-    if not index.exists():
+    if not index.exists() and not index.is_symlink():
         return ReadOnlyRegistry(root=root.resolve(), records={})
     payload = _read_confined(root, "registry.json")
     if isinstance(payload, str):
-        return Empty("ROOT_UNAVAILABLE")
+        return Empty("PATH_ESCAPE")
     try:
         document = json.loads(payload.decode("utf-8"))
     except (UnicodeError, json.JSONDecodeError):
@@ -225,11 +225,31 @@ def open_registry(root: Path | None, *, store_root: Path | None = None) -> ReadO
     return ReadOnlyRegistry(root=root.resolve(), records=records, duplicate_ids=duplicate)
 
 
-def _evidence_ok(record: Mapping[str, Any]) -> str | None:
-    """Check the agent and the session as two different sources.
+def registry_index_review(source: str) -> str | None:
+    """Static check. A bare ``read_text`` on the index is not confined IO."""
+    if "read_text" in source:
+        return "REGISTRY_INDEX_UNCONFINED"
+    return None
 
-    The public agent id is not a session id. Putting ``TA_REVIEWER_ID`` in
-    ``issuer_session_id`` does not verify the original session.
+
+def ro_bind_assessment(proof: Mapping[str, Any] | None) -> str:
+    """chmod and ``os.access`` are not a read-only bind. GAP-04 stays open.
+
+    This does not grant trust and does not record an Ops proof.
+    """
+    if not isinstance(proof, dict):
+        return "RO_BIND_UNPROVEN"
+    method = proof.get("method")
+    if method in {None, "chmod", "os.access"}:
+        return "RO_BIND_UNPROVEN"
+    return "RO_BIND_UNPROVEN"
+
+
+def _evidence_ok(record: Mapping[str, Any]) -> str | None:
+    """Check the agent and the session against two different constants.
+
+    A non-empty ``relay_proof`` is shape only. It is not independent source
+    verification. GAP-03 stays open.
     """
     evidence = record.get("source_evidence")
     issuer = record.get("issuer_id")
@@ -239,13 +259,15 @@ def _evidence_ok(record: Mapping[str, Any]) -> str | None:
     session = evidence.get("issuer_session_id")
     agent = evidence.get("issuer_agent_id")
     proof = evidence.get("relay_proof")
-    if not all(isinstance(item, str) and item.strip() for item in (transfer, session, proof, agent)):
+    if not all(isinstance(item, str) and item.strip() for item in (transfer, proof)):
         return "EVIDENCE_UNVERIFIED"
-    if session == TA_REVIEWER_ID or session == issuer or session == agent:
+    if not isinstance(issuer, str) or not isinstance(agent, str) or not isinstance(session, str):
+        return "EVIDENCE_UNVERIFIED"
+    if issuer != ORIGINAL_AGENT_ID or agent != ORIGINAL_AGENT_ID:
         return "ISSUER_MISMATCH"
-    if agent != TA_REVIEWER_ID or issuer != TA_REVIEWER_ID:
-        return "ISSUER_MISMATCH"
-    if session != ORIGINAL_REVIEWER_SESSION_ID:
+    if session == issuer or session == TA_REVIEWER_ID or session.startswith("agt_"):
+        return "ISSUER_SESSION_COLLISION"
+    if session != ORIGINAL_SESSION_ID:
         return "ISSUER_MISMATCH"
     return None
 
@@ -290,6 +312,8 @@ def consume_trusted_original(
     evidence_gap = _evidence_ok(record)
     if evidence_gap:
         return Rejected(evidence_gap)
+    if record.get("content_kind") == "REVIEW_RECEIPT":
+        return Rejected("EVIDENCE_UNVERIFIED")
     payload = _read_confined(registry_view.root, record.get("raw_bytes_ref"))
     if isinstance(payload, str):
         return Rejected(payload)

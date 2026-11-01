@@ -333,7 +333,7 @@ def test_fixture_loop_hash_mismatch_escape_evidence_and_ambiguous(tmp_path):
         _unseal(many)
 
 
-def test_agent_id_is_not_accepted_as_the_session(tmp_path):
+def test_agent_id_in_the_session_field_is_a_collision(tmp_path):
     root = tmp_path / "session"
     binding = normalize_binding(_tuple())
     stuffed = _record(root, binding_tuple=binding.as_dict())
@@ -343,7 +343,26 @@ def test_agent_id_is_not_accepted_as_the_session(tmp_path):
         result = consume_trusted_original(binding, _view(root), set())
     finally:
         _unseal(root)
-    assert getattr(result, "reason_code", "") == "ISSUER_MISMATCH"
+    assert getattr(result, "reason_code", "") == "ISSUER_SESSION_COLLISION"
+
+
+def test_wrong_session_and_wrong_issuer_stay_mismatches(tmp_path):
+    binding = normalize_binding(_tuple())
+    wrong_session = tmp_path / "wrong-session"
+    row = _record(wrong_session, binding_tuple=binding.as_dict())
+    row["source_evidence"]["issuer_session_id"] = "not-the-original-session"
+    _seal(wrong_session, [row])
+    try:
+        assert getattr(consume_trusted_original(binding, _view(wrong_session), set()), "reason_code", "") == "ISSUER_MISMATCH"
+    finally:
+        _unseal(wrong_session)
+    wrong_issuer = tmp_path / "wrong-issuer"
+    other = _record(wrong_issuer, binding_tuple=binding.as_dict(), issuer_id="not-the-agent")
+    _seal(wrong_issuer, [other])
+    try:
+        assert getattr(consume_trusted_original(binding, _view(wrong_issuer), set()), "reason_code", "") == "ISSUER_MISMATCH"
+    finally:
+        _unseal(wrong_issuer)
 
 
 def test_symlinked_registry_index_is_not_read(tmp_path):
@@ -362,8 +381,22 @@ def test_symlinked_registry_index_is_not_read(tmp_path):
         opened = open_registry(root)
     finally:
         root.chmod(0o755)
-    assert getattr(opened, "reason", "") == "ROOT_UNAVAILABLE"
+    assert getattr(opened, "reason", "") == "PATH_ESCAPE"
     assert not hasattr(opened, "records") or "escaped" not in getattr(opened, "records", {})
+
+
+def test_registry_index_is_confined_and_chmod_is_not_a_bind():
+    import inspect
+    from octo.trusted_original import _read_confined, open_registry, registry_index_review, ro_bind_assessment
+    source = inspect.getsource(open_registry)
+    assert "read_text" not in source
+    assert registry_index_review(source) is None
+    assert registry_index_review("document = index.read_text(encoding='utf-8')") == "REGISTRY_INDEX_UNCONFINED"
+    assert ro_bind_assessment({"method": "chmod"}) == "RO_BIND_UNPROVEN"
+    assert ro_bind_assessment({"method": "os.access"}) == "RO_BIND_UNPROVEN"
+    root = Path("/tmp")
+    assert _read_confined(root, "/etc/passwd") == "PATH_ESCAPE"
+    assert _read_confined(root, "../outside") == "PATH_ESCAPE"
 
 
 def test_candidate_self_report_does_not_select_the_record(tmp_path):
@@ -409,28 +442,28 @@ def test_non_pass_review_receipt_stays_blocked_and_pass_is_only_ok_when_not_a_fi
     assert envelope["status"] == "BLOCKED"
     assert envelope["output"]["verdict"] != "PASS"
 
-    ok_root = tmp_path / "contract-pass"
+    forged = tmp_path / "forged-review"
     passed = _record(
-        ok_root,
-        raw=b"contract-not-a-real-reviewer-original",
+        forged,
+        raw=b"shape-only-not-an-original",
         binding_tuple=binding.as_dict(),
         content_kind="REVIEW_RECEIPT",
         test_only=False,
         verdict="PASS",
     )
-    _seal(ok_root, [passed])
+    _seal(forged, [passed])
     try:
         hit = run_n11(
             {"candidate_sha": CANDIDATE, "scope": {"route": ROUTE}},
             at=AT,
-            registry_root=ok_root,
+            registry_root=forged,
             fixture_digest=FIXTURE,
         )
     finally:
-        _unseal(ok_root)
-    assert hit["status"] == "OK"
-    assert hit["output"]["verdict"] == "PASS"
+        _unseal(forged)
+    assert hit["status"] == "BLOCKED"
+    assert hit["output"]["verdict"] != "PASS"
+    assert "EVIDENCE_UNVERIFIED" in hit["output"]["evidence"][0]["note"]
     assert hit["output"]["evidence"][0]["runtime_pass"] is False
-    assert hit["output"]["evidence"][0]["test_only"] is False
     assert runner_base_sha() == BASE
     assert isinstance(binding, BindingTuple)
