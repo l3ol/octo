@@ -213,6 +213,7 @@ def run_standard(route_request, pack, *, at: str, request, store, now=None) -> d
         {"candidate_sha": request.git_candidate_sha, "scope": {"route": "internal_readonly"}},
         at=at,
         independent_receipt=pack.get("independent_receipt"),
+        store_root=store.root,
     )
     envelopes.append(n11_env)
     n12_inputs = {

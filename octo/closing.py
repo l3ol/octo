@@ -1,28 +1,44 @@
 """N11 verify, N12 capture, and N13 board entry.
 
 Builder selftest support only. N11 does not issue an independent PASS.
-runtime_pass stays false. A readable file that copies the public reviewer id
-is not an issuance. There is no candidate-writable control plane that can
-accept PASS, so the verdict stays BLOCKED until that source exists.
+runtime_pass stays false. Trust comes only from ``consume_trusted_original``.
+A readable file that copies the public reviewer id is not an issuance.
+
+Spec SPEC-N11-TRUSTED-ORIGINAL-INTERFACE-v1
+sha256 ``c9341bf7b3c149655de865953d03f46c19377e4a796e606590ae590adfc9bebf``.
 """
 
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
 from octo.candidate import git_candidate_sha
-from octo.g3_review import invalidate_stored_pass, product_scope_digest
+from octo.g3_review import product_scope_digest
 from octo.grant import safe_path, write_once
 from octo.nodes import emit_envelope
 from octo.objects import canonical, digest
+from octo.trusted_original import (
+    TA_REVIEWER_ID,
+    FIXTURE_DIGEST_ENV,
+    BindingTuple,
+    ConsumeResult,
+    Empty,
+    Found,
+    ReadOnlyRegistry,
+    Rejected,
+    consume_trusted_original,
+    normalize_binding,
+    open_registry,
+    runner_base_sha,
+)
 
 N11_KEYS = {"candidate_sha", "scope"}
 N12_KEYS = {"decisions", "evidence", "receipts", "failures"}
 N13_KEYS = {"outcome", "verify_state", "writeback_state", "handoff_state"}
 WRITTEN_OBJECTS = frozenset({"Decision", "Evidence", "Receipt"})
-TA_REVIEWER_ID = "agt_6ae61c44e54081918e81a0adea556ef8"
 _READY = frozenset({"READY", "OK", "PASS"})
 
 
@@ -35,51 +51,29 @@ def _blocked(scope: Any, note: str, verdict: str = "BLOCKED") -> tuple[dict, str
 
 
 def _scope_matches(receipt_scope: Any, caller_scope: Any) -> bool:
-    """True only for a fully bound quadruple that a trusted source registered.
+    """True only when both sides are the same normalized five-field tuple.
 
-    Route equality is not enough. A missing tuple is not a match. A candidate
-    cannot register that source by writing the file, so this stays false.
+    Route equality is not enough. A missing field is not a match.
     """
     return _scope_gap(receipt_scope, caller_scope) is None
 
 
-def _scope_gap(receipt_scope: Any, caller_scope: Any) -> str:
-    if not isinstance(receipt_scope, dict) or not isinstance(caller_scope, dict):
+def _scope_gap(receipt_scope: Any, caller_scope: Any) -> str | None:
+    left = normalize_binding(receipt_scope if isinstance(receipt_scope, Mapping) else None)
+    right = normalize_binding(caller_scope if isinstance(caller_scope, Mapping) else None)
+    if left is None or right is None:
         return "scope binding incomplete"
-    if "tuple" not in receipt_scope or "tuple" not in caller_scope:
-        return "scope binding incomplete"
-    if receipt_scope.get("tuple") != caller_scope.get("tuple"):
-        return "tuple mismatch"
-    if receipt_scope.get("route") != caller_scope.get("route"):
+    if left.route != right.route:
         return "route mismatch"
-    expected_scope = product_scope_digest()
-    if receipt_scope.get("scope_digest") != expected_scope or caller_scope.get("scope_digest") != expected_scope:
+    if left.scope_digest != right.scope_digest or left.scope_digest != product_scope_digest():
         return "scope digest mismatch"
-    for name in ("base_sha", "candidate_sha", "fixture_digest"):
-        if not receipt_scope.get(name) or not caller_scope.get(name):
-            return "scope binding incomplete"
-        if receipt_scope.get(name) != caller_scope.get(name):
-            return f"{name} mismatch"
-    try:
-        invalidation = invalidate_stored_pass(
-            {
-                "base_sha": receipt_scope["base_sha"],
-                "candidate_sha": receipt_scope["candidate_sha"],
-                "scope_digest": receipt_scope["scope_digest"],
-                "fixture_digest": receipt_scope["fixture_digest"],
-            },
-            {
-                "base_sha": caller_scope["base_sha"],
-                "candidate_sha": caller_scope["candidate_sha"],
-                "scope_digest": caller_scope["scope_digest"],
-                "fixture_digest": caller_scope["fixture_digest"],
-            },
-        )
-    except ValueError:
-        return "scope binding incomplete"
-    if invalidation["status"] != "UNCHANGED":
-        return "stale binding"
-    return "no trusted reviewer registration"
+    if left.base_sha != right.base_sha:
+        return "base_sha mismatch"
+    if left.candidate_sha != right.candidate_sha:
+        return "candidate_sha mismatch"
+    if left.fixture_digest != right.fixture_digest:
+        return "fixture_digest mismatch"
+    return None
 
 
 def _load_receipt_file(path_value: Any) -> dict | None:
@@ -101,37 +95,104 @@ def json_loads(data: bytes) -> Any:
     return json.loads(data.decode("utf-8"))
 
 
-def _verified_original(opened: Mapping[str, Any], candidate: str, scope: Any) -> str | None:
-    """No candidate-supplied file is an original. Public id plus bytes is not issuance."""
+def _verified_original(
+    opened: Mapping[str, Any] | None,
+    candidate: str,
+    scope: Any,
+    *,
+    binding: BindingTuple | None = None,
+    registry_view: ReadOnlyRegistry | None = None,
+    fixture_hashes: set[str] | None = None,
+) -> Found | None:
+    """Return a Found original. Candidate file bytes are never the source."""
     del opened, candidate, scope
-    return None
+    if binding is None or registry_view is None:
+        return None
+    found = consume_trusted_original(binding, registry_view, fixture_hashes or set())
+    return found if isinstance(found, Found) else None
 
 
-def _judge_receipt(receipt: Mapping[str, Any], candidate: str, scope: Any) -> tuple[dict, str]:
-    """Untrusted material stays BLOCKED. This entry cannot mint a reviewer PASS."""
-    if receipt.get("builder_signed") is True:
-        raise ValueError("BUILDER_PASS_FORBIDDEN")
-    if receipt.get("signed_by") == "candidate-self-report":
-        return _blocked(scope, "candidate self-report is not a TA reviewer receipt")
-    issuer = receipt.get("issuer") or receipt.get("reviewer")
-    if isinstance(issuer, str) and issuer != TA_REVIEWER_ID:
-        return _blocked(scope, "forged issuer")
-    presented = receipt.get("candidate_sha")
-    if isinstance(presented, str) and presented != candidate:
-        return _blocked(scope, "STALE_PASS_CANDIDATE_CHANGED")
-    receipt_scope = receipt.get("scope")
-    if isinstance(receipt_scope, dict):
-        gap = _scope_gap(receipt_scope, scope if isinstance(scope, dict) else {})
-        if gap != "no trusted reviewer registration":
-            return _blocked(scope, gap)
-    if receipt.get("test_only") is True:
-        return _blocked(scope, "TEST_ONLY evidence is not a PASS")
-    opened = _load_receipt_file(receipt.get("path"))
-    if _verified_original(opened or receipt, candidate, scope) is not None:
-        raise RuntimeError("candidate material must not become a reviewer verdict")
-    if opened is None:
-        return _blocked(scope, "untrusted or empty proof")
-    return _blocked(scope, "readable file is not a reviewer issuance")
+def _empty_note(result: Empty) -> str:
+    if result.reason == "EMPTY_REGISTRY":
+        return "EMPTY_REGISTRY no trusted reviewer registration"
+    return result.reason
+
+
+def _from_consume(result: ConsumeResult, scope: Any) -> tuple[dict, str]:
+    if isinstance(result, Empty):
+        return _blocked(scope, _empty_note(result))
+    if isinstance(result, Rejected):
+        return _blocked(scope, result.reason_code)
+    if result.test_only:
+        return _blocked(scope, "TEST_FIXTURE_ONLY")
+    verdict = result.record.get("verdict")
+    if verdict == "PASS":
+        return {
+            "verdict": "PASS",
+            "evidence": [{
+                "note": "trusted original",
+                "test_only": False,
+                "runtime_pass": False,
+            }],
+            "scope": scope,
+        }, "OK"
+    return _blocked(scope, "verdict not PASS")
+
+
+def _judge_receipt(
+    receipt: Mapping[str, Any] | None,
+    candidate: str,
+    scope: Any,
+    *,
+    binding: BindingTuple | None,
+    registry_view: ReadOnlyRegistry | None,
+    fixture_hashes: set[str],
+    registry_empty: Empty | None = None,
+) -> tuple[dict, str]:
+    """Candidate claims can only reject. The grant of trust is the registry."""
+    if isinstance(receipt, Mapping):
+        if receipt.get("builder_signed") is True:
+            return _blocked(scope, "BUILDER_PASS_FORBIDDEN")
+        if receipt.get("signed_by") == "candidate-self-report":
+            return _blocked(scope, "candidate self-report is not a TA reviewer receipt")
+        issuer = receipt.get("issuer") or receipt.get("reviewer")
+        if isinstance(issuer, str) and issuer != TA_REVIEWER_ID:
+            return _blocked(scope, "forged issuer")
+        presented = receipt.get("candidate_sha")
+        if isinstance(presented, str) and presented != candidate:
+            return _blocked(scope, "STALE_PASS_CANDIDATE_CHANGED")
+        if receipt.get("test_only") is True:
+            return _blocked(scope, "TEST_ONLY evidence is not a PASS")
+        _load_receipt_file(receipt.get("path"))
+    if registry_empty is not None:
+        return _from_consume(registry_empty, scope)
+    result = consume_trusted_original(binding, registry_view, fixture_hashes)
+    if not isinstance(result, Found):
+        return _from_consume(result, scope)
+    verified = _verified_original(
+        None,
+        candidate,
+        scope,
+        binding=binding,
+        registry_view=registry_view,
+        fixture_hashes=fixture_hashes,
+    )
+    if verified is None:
+        return _blocked(scope, "no trusted reviewer registration")
+    return _from_consume(verified, scope)
+
+
+def _runner_binding(inputs: Mapping[str, Any], fixture_digest: str | None) -> BindingTuple | None:
+    scope = inputs.get("scope") if isinstance(inputs.get("scope"), dict) else {}
+    route = scope.get("route") if isinstance(scope, dict) else None
+    chosen = fixture_digest if fixture_digest is not None else os.environ.get(FIXTURE_DIGEST_ENV)
+    return normalize_binding({
+        "route": route,
+        "scope_digest": product_scope_digest(),
+        "base_sha": runner_base_sha() or "",
+        "candidate_sha": inputs.get("candidate_sha"),
+        "fixture_digest": chosen or "",
+    })
 
 
 def run_n11(
@@ -140,20 +201,35 @@ def run_n11(
     at: str,
     independent_receipt: Mapping[str, Any] | None = None,
     builder_claims_pass: bool = False,
+    registry_root: Path | None = None,
+    fixture_hashes: set[str] | None = None,
+    fixture_digest: str | None = None,
+    store_root: Path | None = None,
 ) -> dict:
-    """Frozen N11. No traceable TA receipt → BLOCKED. Builder PASS is rejected."""
+    """Frozen N11. Trust is the read-only registry, not the candidate receipt."""
     if builder_claims_pass:
         raise ValueError("BUILDER_PASS_FORBIDDEN")
     if set(inputs) != N11_KEYS:
         raise ValueError("N11_SHAPE_MISMATCH")
     candidate = git_candidate_sha(inputs["candidate_sha"])
     scope = inputs["scope"]
-    if independent_receipt is None:
-        output, status = _blocked(scope, "no independent verifier receipt")
-    elif not isinstance(independent_receipt, Mapping):
+    if independent_receipt is not None and not isinstance(independent_receipt, Mapping):
         output, status = _blocked(scope, "empty or unopenable proof")
     else:
-        output, status = _judge_receipt(independent_receipt, candidate, scope)
+        if registry_root is None and os.environ.get("OCTO_TRUSTED_ORIGINAL_ROOT"):
+            registry_root = Path(os.environ["OCTO_TRUSTED_ORIGINAL_ROOT"])
+        opened = open_registry(registry_root, store_root=store_root)
+        hashes = set(fixture_hashes or ())
+        binding = _runner_binding(inputs, fixture_digest)
+        output, status = _judge_receipt(
+            independent_receipt,
+            candidate,
+            scope,
+            binding=binding,
+            registry_view=opened if isinstance(opened, ReadOnlyRegistry) else None,
+            fixture_hashes=hashes,
+            registry_empty=opened if isinstance(opened, Empty) else None,
+        )
     if set(output) != {"verdict", "evidence", "scope"}:
         raise ValueError("N11_SHAPE_MISMATCH")
     if output["verdict"] == "PASS" and status != "OK":

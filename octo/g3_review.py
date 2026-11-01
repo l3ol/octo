@@ -66,6 +66,7 @@ REQUIRED_ARTIFACT_KINDS = frozenset({"grant", "request", "receipt", "log"})
 EXCLUDED_ARTIFACT_KINDS = frozenset({
     "runtime_manifest",
     "review_receipt",
+    "trusted_review_original",
     "handoff_snapshot",
     "fixture_digest",
     "snapshot",
