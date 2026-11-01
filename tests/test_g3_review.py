@@ -94,19 +94,28 @@ def test_product_scope_and_three_column_fixture_digest_recompute():
     strategy = scope["isolation_strategy"]
     policy = json.loads((ROOT / "tests/fixtures/g2s1/isolation-policy.json").read_text(encoding="utf-8"))
     assert {key: value for key, value in policy.items() if key != "kind"} == strategy
-    assert strategy["readiness"] == "READY_FOR_ISOLATED_RUN"
-    assert strategy["readiness_conditional"] is True
+    assert strategy["readiness"] == "HARDENED_RECIPE_ACHIEVED_RUNNER_CONTRACT_DEPENDENT"
     assert strategy["runtime_pass"] is False
     assert strategy["full_sandbox"] is False
-    assert strategy["deny_egress"]["claimed"] is True
-    assert strategy["deny_egress"]["method"] == "bwrap 0.12.0 --unshare-net"
-    assert strategy["deny_egress"]["connect_errno"] == 101
-    assert strategy["deny_egress"]["app_layer_equals_deny_egress"] is False
-    assert strategy["ops_evidence"]["md_sha256"] == (
-        "dca8c880e1e458afd52ecc687c417366ce9af7eb069aaf0a7cb79005c4ff089b"
+    assert strategy["unshare"] == ["net", "pid"]
+    assert strategy["as_pid_1"] is True
+    assert strategy["die_with_parent"] is True
+    assert strategy["new_session"] is True
+    assert strategy["dev"] == "bwrap --dev + --remount-ro /dev"
+    assert strategy["writable_binds"] == ["/iso"]
+    assert strategy["tmpdir"] == "/iso/tmp"
+    assert strategy["runner_close_fds"] is True
+    assert strategy["runner_pass_fds"] == []
+    assert strategy["runner_stdin"] == "devnull"
+    assert strategy["require_fd_audit_inside"] is True
+    assert strategy["ops_evidence"]["harden_md_sha256"] == (
+        "36e197c205581fe9245272975cb2d6808e2579530e6725e8cefee7f436a1a2b1"
     )
-    assert strategy["ops_evidence"]["json_sha256"] == (
-        "64a817afa5643940104df1cab7e64628102a139de3fe38be5ce43aab87039086"
+    assert strategy["ops_evidence"]["harden_json_sha256"] == (
+        "8bd5c4a1e9e3d922c3e5b7ab4f8f269a0ec45bd6fde5bec9285bcd4ff601028c"
+    )
+    assert strategy["ops_evidence"]["intake_sha256"] == (
+        "fdd32d46013f6ccc6fdee391ca5daa7f337337e772fcecd468baba9073876e4b"
     )
     assert scope["reviewer_separation"]["builder_may_sign_pass"] is False
     raw_manifest = (ROOT / "SOURCE-IMPORT-MANIFEST-G2-S1.json").read_bytes()

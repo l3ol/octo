@@ -1,42 +1,43 @@
 {
-  "caveats": [
-    "Landlock ABI=6 rules NOT applied",
-    "seccomp NOT_TRIED_NO_LIB",
-    "APP_LAYER socket stub is not deny-egress",
-    "not a complete sandbox",
-    "runtime_pass=false"
-  ],
-  "deny_egress": {
-    "app_layer_equals_deny_egress": false,
-    "claimed": true,
-    "connect_errno": 101,
-    "connect_errno_name": "ENETUNREACH",
-    "level": "process network namespace via unprivileged user namespace",
-    "method": "bwrap 0.12.0 --unshare-net"
-  },
-  "filesystem": {
-    "candidate": "EROFS",
-    "dev": "bwrap private ephemeral tmpfs; not host-persistent",
-    "host_persistent_writable": "/iso"
-  },
+  "as_pid_1": true,
+  "dev": "bwrap --dev + --remount-ro /dev",
+  "die_with_parent": true,
   "full_sandbox": false,
-  "hard_conditions": [
-    "close_fds / forbid pass_fds",
-    "TMPDIR must be under /iso"
-  ],
   "kind": "isolation_policy",
+  "limits": [
+    "Inherited file descriptors bypass the network namespace unless the runner sets close_fds and pass_fds empty.",
+    "The only ordinary writable bind is /iso. /dev device nodes may be rw; ordinary files on /dev are not a writable store.",
+    "seccomp was not applied. This is not a complete sandbox and is not a PASS-with-caveat."
+  ],
+  "new_session": true,
   "no_install": true,
   "no_privilege_expansion": true,
   "no_sudo": true,
   "ops_evidence": {
-    "json_sha256": "64a817afa5643940104df1cab7e64628102a139de3fe38be5ce43aab87039086",
-    "md_sha256": "dca8c880e1e458afd52ecc687c417366ce9af7eb069aaf0a7cb79005c4ff089b"
+    "harden_json_sha256": "8bd5c4a1e9e3d922c3e5b7ab4f8f269a0ec45bd6fde5bec9285bcd4ff601028c",
+    "harden_md_sha256": "36e197c205581fe9245272975cb2d6808e2579530e6725e8cefee7f436a1a2b1",
+    "intake_sha256": "fdd32d46013f6ccc6fdee391ca5daa7f337337e772fcecd468baba9073876e4b"
   },
-  "readiness": "READY_FOR_ISOLATED_RUN",
-  "readiness_conditional": true,
+  "proc": "fresh in pidns",
+  "readiness": "HARDENED_RECIPE_ACHIEVED_RUNNER_CONTRACT_DEPENDENT",
+  "recipe": "bwrap --die-with-parent --new-session --unshare-net --unshare-pid --as-pid-1 --ro-bind /usr /usr --symlink usr/lib /lib --symlink usr/lib64 /lib64 --symlink usr/bin /bin --ro-bind /etc /etc --proc /proc --dev /dev --remount-ro /dev --bind <OUT>/iso /iso --setenv TMPDIR /iso/tmp --remount-ro / --chdir /iso -- <cmd>",
+  "require_fd_audit_inside": true,
   "reviewer_pass": false,
+  "ro_binds": [
+    "/usr",
+    "/etc"
+  ],
+  "root": "tmpfs ro",
+  "runner_close_fds": true,
+  "runner_pass_fds": [],
+  "runner_stdin": "devnull",
   "runtime_pass": false,
-  "store": "caller-supplied isolation directory",
-  "unix_permissions": "0600 records inside that store",
-  "writeback": "external isolated test store only"
+  "tmpdir": "/iso/tmp",
+  "unshare": [
+    "net",
+    "pid"
+  ],
+  "writable_binds": [
+    "/iso"
+  ]
 }
