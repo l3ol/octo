@@ -1,0 +1,79 @@
+{
+  "acceptance": [
+    "Frozen node input/output schemas and real recomputable inputs_hash for N1/N2/N3/N4/N5/N8; exclusions do not fabricate N6/N7 output.",
+    "Action-type Router; no complexity compatibility; frozen downgrade states only; required Full nodes/upgrade/unknown action stop Standard.",
+    "N9 actual six validators, six negative DENY Receipts plus positive test-domain ALLOW and real validated grant_ref; no mock or reality authorization.",
+    "N10 Journal before dispatch, idempotency/request_digest, UNKNOWN_COMMIT reconciliation without blind retry.",
+    "N11/N12/N13 frozen output, isolation writeback and separate states; no Builder runtime PASS.",
+    "Source bytes/SHA256/Git blob/path/commit independently checked by Grok; selected-range import manifest bound to snapshot.",
+    "Final candidate contains static templates only; runtime TEST_FIXTURE/TEST_ONLY Grant and evidence generated externally after freeze, digests bound without rewriting candidate.",
+    "Isolation capability report and actual proof limits; insufficient isolation prevents T8 no-external-side-effect conclusion and G3 PASS.",
+    "Reviewer entry and old PASS invalidation for any changed base/candidate/scope_digest/fixture_digest; fixed TA Reviewer independently confirms current qualification after candidate freeze.",
+    "Clean fixed-candidate final selftest and handoff_snapshot with tree, full inputs, scope manifest, fixture/artifact digests, commands/exit codes/raw logs; stop candidate modifications."
+  ],
+  "dispatch_id": "PRODUCT-BUILD-2026-11-01-G2-S1-TB-01",
+  "exclusions": {
+    "nodes_not_emitted": ["N6", "N7"],
+    "non_goals": [
+      "N6/N7 full implementation",
+      "Full route",
+      "resident Chief channel",
+      "production",
+      "UI",
+      "Path B",
+      "merge",
+      "deploy"
+    ],
+    "prohibitions": [
+      "No product goals, frozen PRD, or authorization changes.",
+      "No merge/deploy/production credentials/payments/deletion/external effects/Path B.",
+      "No history merge/rebase or wholesale source copy; no brain/DB/history Receipts/Grant instances/private data/untracked docs/credentials/machine config import.",
+      "No new channels, poller restart, installation or permission expansion.",
+      "No squad/Builder/Chief signing independent runtime PASS; no G3 before fixed candidate and Reviewer qualification.",
+      "No upgrading P0/GrokBot basis candidates; no M0 rerun; no routine Founder continue gate."
+    ]
+  },
+  "frozen_basis": {
+    "entry": "00e05cc104da76bdba63447ff3791916a5c7a64ce6d4019b5d57dba1ebe2ec4b",
+    "io13": "27f3378e0f032c6c578ef9be1ed5b5f6dcde161e56a7e7473462a1e4fdd85c59",
+    "readme": "c4ff0e5fbf494ed71be449ec3b45e301b56d6ce9ff3b79c2018759ed71232555"
+  },
+  "isolation_strategy": {
+    "deny_egress": "NOT_READY",
+    "network_control": "pytest socket stub only; not process or container deny-egress",
+    "no_install": true,
+    "no_privilege_expansion": true,
+    "ops_preflight": "NOT_READY",
+    "store": "caller-supplied isolation directory",
+    "unix_permissions": "0600 records inside that store",
+    "writeback": "external isolated test store only"
+  },
+  "kind": "SCOPE-MANIFEST",
+  "nodes": [
+    "N1",
+    "N2",
+    "N3",
+    "N4",
+    "N5",
+    "N8",
+    "N9_MINIMAL_SAFETY_PRECHECK",
+    "N10",
+    "N11",
+    "N12",
+    "N13"
+  ],
+  "reviewer_separation": {
+    "builder_may_sign_pass": false,
+    "g3_requires_reviewer_qualification_after_candidate_freeze": true,
+    "g3_reviewer_agent_id": "agt_6ae61c44e54081918e81a0adea556ef8",
+    "review_entry_issues_pass": false,
+    "squad_reviewer_prepares_entry_only": true
+  },
+  "route": "Standard internal_readonly with N9 precheck before N10",
+  "source_import_manifest": {
+    "algorithm": "sha256 of exact file bytes",
+    "path": "SOURCE-IMPORT-MANIFEST-G2-S1.json",
+    "sha256": "9b434a6e3d2a5fef42a65346511a7e9344bbee9a112a510fdc7a20edc8c186ce"
+  },
+  "test_commands": ["PYTHONPATH=. pytest tests/ -q"]
+}

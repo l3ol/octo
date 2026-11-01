@@ -1,0 +1,12 @@
+{
+  "committed": false,
+  "entries": [
+    {"issued_via": "TEST_FIXTURE", "name": "grant", "test_only": true},
+    {"name": "request", "test_only": true},
+    {"name": "receipt", "test_only": true},
+    {"name": "log", "test_only": true}
+  ],
+  "kind": "runtime_artifact_inventory_schema",
+  "location": "external_isolation_store",
+  "note": "Schema only. Generate TEST_ONLY artifacts outside the repo after the candidate tip is frozen. Do not write those artifacts back into this file or into fixture_digest."
+}

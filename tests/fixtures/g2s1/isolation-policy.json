@@ -1,0 +1,12 @@
+{
+  "deny_egress": "NOT_READY",
+  "kind": "isolation_policy",
+  "network_control": "pytest socket stub only; not process or container deny-egress",
+  "no_install": true,
+  "no_privilege_expansion": true,
+  "no_sudo": true,
+  "ops_preflight": "NOT_READY",
+  "store": "caller-supplied isolation directory",
+  "unix_permissions": "0600 records inside that store",
+  "writeback": "isolation store only"
+}
