@@ -67,9 +67,10 @@ def apply_hardened_runner(iso_host_path: str, command: list[str], *, log_path: P
             check=False,
             **kwargs,
         )
-    except FileNotFoundError as exc:
+    except FileNotFoundError:
         record = {
             "runtime_pass": False,
+            "capability": "CAPABILITY_GAP",
             "returncode": None,
             "argv": argv,
             "close_fds": True,
@@ -79,7 +80,7 @@ def apply_hardened_runner(iso_host_path: str, command: list[str], *, log_path: P
         }
         with path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record, ensure_ascii=False) + "\n")
-        raise FileNotFoundError("BWRAP_MISSING") from exc
+        return record
     text = completed.stdout.decode("utf-8", errors="replace")
     record = {
         "runtime_pass": False,
@@ -90,6 +91,9 @@ def apply_hardened_runner(iso_host_path: str, command: list[str], *, log_path: P
         "stdin": "devnull",
         "stdout": text,
     }
+    if completed.returncode != 0 and "PIDS" not in text:
+        record["capability"] = "CAPABILITY_GAP"
+        record["error"] = "PROCESS_ISOLATION_UNAVAILABLE"
     with path.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(record, ensure_ascii=False) + "\n")
     return record

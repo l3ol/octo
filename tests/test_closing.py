@@ -7,7 +7,7 @@ import subprocess
 
 import pytest
 
-from octo.closing import TA_REVIEWER_ID, run_n11, run_n12, run_n13
+from octo.closing import TA_REVIEWER_ID, _scope_matches, run_n11, run_n12, run_n13
 from octo.envelope import validate_envelope
 from octo.gateway import Gateway
 from octo.grant import AuthorizationRequest, GrantStore
@@ -133,7 +133,6 @@ def test_standard_run_closes_without_n6_n7_envelopes(tmp_path):
     assert effect["content_sha256"] == hashlib.sha256(b"synthetic").hexdigest()
     assert "op" not in effect
     assert (tmp_path / effect["evidence_ref"]).read_bytes() == b"synthetic"
-    assert (tmp_path / "runner" / "read.log").is_file()
     assert not (ROOT / "writeback").exists()
     assert not (ROOT / "brain").exists()
     journal.close()
@@ -160,21 +159,21 @@ def test_n13_rejects_old_path_shape():
         )
 
 
-def _verified_receipt(path: Path, *, candidate: str, verdict: str) -> dict:
+def _forged_receipt(path: Path, *, candidate: str, verdict: str) -> dict:
+    """A candidate-written file. It is not a reviewer original."""
     body = {
         "issuer": TA_REVIEWER_ID,
         "candidate_sha": candidate,
         "verdict": verdict,
         "scope": {"route": "internal_readonly"},
         "signed_by": TA_REVIEWER_ID,
-        "test_only": False,
     }
     path.write_text(json.dumps(body), encoding="utf-8")
     return {**body, "path": str(path)}
 
 
-def test_n12_failure_changes_writeback_and_verified_receipt_changes_handoff(tmp_path):
-    """H1 writeback follows a failed capture. H3 handoff follows a verified receipt."""
+def test_n12_failure_changes_writeback_and_forged_receipt_stays_blocked(tmp_path):
+    """H1 writeback follows a failed capture. A self-written reviewer file is not PASS."""
     from octo.nodes import run_n1
 
     n1_in = PLAN["nodes"]["N1"]["input"]
@@ -247,7 +246,7 @@ def test_n12_failure_changes_writeback_and_verified_receipt_changes_handoff(tmp_
     receipt_path = passed_root / "ta-receipt.json"
     pack = _pack(n1_in, intent)
     pack["gateway"] = Gateway(journal_ok, grants_ok)
-    pack["independent_receipt"] = _verified_receipt(
+    pack["independent_receipt"] = _forged_receipt(
         receipt_path, candidate=request_ok.git_candidate_sha, verdict="PASS",
     )
     passed = run_standard(
@@ -258,12 +257,14 @@ def test_n12_failure_changes_writeback_and_verified_receipt_changes_handoff(tmp_
         store=grants_ok,
         now=NOW,
     )
-    assert passed["envelopes"][-3]["output"]["verdict"] == "PASS"
+    assert passed["envelopes"][-3]["output"]["verdict"] == "BLOCKED"
+    assert passed["envelopes"][-3]["output"]["verdict"] != "PASS"
     assert passed["envelopes"][-1]["inputs"]["writeback_state"] == "OK"
-    assert passed["envelopes"][-1]["inputs"]["handoff_state"] == "READY"
-    assert passed["status"] == "OK"
+    assert passed["envelopes"][-1]["inputs"]["handoff_state"] == "NOT_READY"
+    assert passed["status"] != "OK"
+    assert _scope_matches({"route": "internal_readonly"}, {"route": "internal_readonly"}) is False
     blocked_path = passed_root / "ta-blocked.json"
-    pack["independent_receipt"] = _verified_receipt(
+    pack["independent_receipt"] = _forged_receipt(
         blocked_path, candidate=request_ok.git_candidate_sha, verdict="BLOCKED",
     )
     request_blocked = AuthorizationRequest(

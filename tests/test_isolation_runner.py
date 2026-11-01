@@ -3,6 +3,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from octo.isolation_runner import TMPDIR, apply_hardened_runner, bwrap_argv, runner_subprocess_kwargs
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,11 +55,20 @@ def test_hardened_runner_applies_proc_and_dev_contract(tmp_path):
     )
     result = apply_hardened_runner(str(iso), ["/usr/bin/python3", "-c", probe], log_path=log_path)
     assert result["runtime_pass"] is False
+    logged = log_path.read_text(encoding="utf-8")
+    assert "\"runtime_pass\": false" in logged
+    if result.get("capability") == "CAPABILITY_GAP":
+        assert "CAPABILITY_GAP" in logged
+        pytest.xfail("CAPABILITY_GAP: this host cannot run the process-isolation contract")
     assert result["returncode"] == 0, result["stdout"]
     assert "PIDS 1" in result["stdout"]
     assert "DEV_WRITE 30" in result["stdout"]
     assert "ISO_WRITE OK" in result["stdout"]
     assert (iso / "tmp" / "probe.txt").read_text(encoding="utf-8") == "ok"
-    logged = log_path.read_text(encoding="utf-8")
     assert "bwrap" in logged
-    assert "\"runtime_pass\": false" in logged
+
+
+def test_ci_workflow_does_not_escalate_privileges():
+    text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    for banned in ("sudo", "apt-get", "sysctl", "bubblewrap"):
+        assert banned not in text

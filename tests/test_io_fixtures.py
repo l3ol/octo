@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from octo.closing import run_n11, run_n12, run_n13
+from octo.closing import TA_REVIEWER_ID, _scope_matches, run_n11, run_n12, run_n13
+from octo.g3_review import product_scope_digest
 from octo.nodes import guard_consequential, run_n1, run_n2, run_n3, run_n5, run_n8
 from octo.objects import digest
 
@@ -130,6 +131,35 @@ def test_f_n11_no_independent_receipt_is_blocked():
     )
     assert forged["output"]["verdict"] == "BLOCKED"
     assert forged["status"] != "OK"
+    assert _scope_matches({"route": "internal_readonly"}, {"route": "internal_readonly"}) is False
+
+
+def test_n11_public_reviewer_id_file_is_not_an_issuance(tmp_path):
+    candidate = "a" * 40
+    body = {
+        "issuer": TA_REVIEWER_ID,
+        "candidate_sha": candidate,
+        "verdict": "PASS",
+        "scope": {
+            "route": "internal_readonly",
+            "tuple": "g2-s1-standard",
+            "scope_digest": product_scope_digest(),
+            "base_sha": "5443c9b4dde7fc208a0a72457c87904650829f77",
+            "candidate_sha": candidate,
+            "fixture_digest": "b" * 64,
+        },
+        "signed_by": TA_REVIEWER_ID,
+    }
+    path = tmp_path / "self-written-pass.json"
+    path.write_text(json.dumps(body), encoding="utf-8")
+    envelope = run_n11(
+        {"candidate_sha": candidate, "scope": body["scope"]},
+        at=AT,
+        independent_receipt={**body, "path": str(path)},
+    )
+    assert envelope["output"]["verdict"] == "BLOCKED"
+    assert envelope["status"] != "OK"
+    assert envelope["output"]["verdict"] != "PASS"
 
 
 def test_f_n12_receipt_is_first(tmp_path):

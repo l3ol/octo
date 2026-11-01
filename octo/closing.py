@@ -1,8 +1,9 @@
 """N11 verify, N12 capture, and N13 board entry.
 
 Builder selftest support only. N11 does not issue an independent PASS.
-runtime_pass stays false. PASS is consumed only from a traceable original
-TA Reviewer receipt bound to the current candidate and scope.
+runtime_pass stays false. A readable file that copies the public reviewer id
+is not an issuance. There is no candidate-writable control plane that can
+accept PASS, so the verdict stays BLOCKED until that source exists.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from octo.candidate import git_candidate_sha
+from octo.g3_review import invalidate_stored_pass, product_scope_digest
 from octo.grant import safe_path, write_once
 from octo.nodes import emit_envelope
 from octo.objects import canonical, digest
@@ -22,7 +24,6 @@ N13_KEYS = {"outcome", "verify_state", "writeback_state", "handoff_state"}
 WRITTEN_OBJECTS = frozenset({"Decision", "Evidence", "Receipt"})
 TA_REVIEWER_ID = "agt_6ae61c44e54081918e81a0adea556ef8"
 _READY = frozenset({"READY", "OK", "PASS"})
-_FORMAL_VERDICTS = frozenset({"PASS", "REVISE", "BLOCKED"})
 
 
 def _blocked(scope: Any, note: str, verdict: str = "BLOCKED") -> tuple[dict, str]:
@@ -34,16 +35,55 @@ def _blocked(scope: Any, note: str, verdict: str = "BLOCKED") -> tuple[dict, str
 
 
 def _scope_matches(receipt_scope: Any, caller_scope: Any) -> bool:
+    """True only for a fully bound quadruple that a trusted source registered.
+
+    Route equality is not enough. A missing tuple is not a match. A candidate
+    cannot register that source by writing the file, so this stays false.
+    """
+    return _scope_gap(receipt_scope, caller_scope) is None
+
+
+def _scope_gap(receipt_scope: Any, caller_scope: Any) -> str:
     if not isinstance(receipt_scope, dict) or not isinstance(caller_scope, dict):
-        return False
+        return "scope binding incomplete"
+    if "tuple" not in receipt_scope or "tuple" not in caller_scope:
+        return "scope binding incomplete"
+    if receipt_scope.get("tuple") != caller_scope.get("tuple"):
+        return "tuple mismatch"
     if receipt_scope.get("route") != caller_scope.get("route"):
-        return False
-    if "tuple" in receipt_scope or "tuple" in caller_scope:
-        return receipt_scope.get("tuple") == caller_scope.get("tuple")
-    return True
+        return "route mismatch"
+    expected_scope = product_scope_digest()
+    if receipt_scope.get("scope_digest") != expected_scope or caller_scope.get("scope_digest") != expected_scope:
+        return "scope digest mismatch"
+    for name in ("base_sha", "candidate_sha", "fixture_digest"):
+        if not receipt_scope.get(name) or not caller_scope.get(name):
+            return "scope binding incomplete"
+        if receipt_scope.get(name) != caller_scope.get(name):
+            return f"{name} mismatch"
+    try:
+        invalidation = invalidate_stored_pass(
+            {
+                "base_sha": receipt_scope["base_sha"],
+                "candidate_sha": receipt_scope["candidate_sha"],
+                "scope_digest": receipt_scope["scope_digest"],
+                "fixture_digest": receipt_scope["fixture_digest"],
+            },
+            {
+                "base_sha": caller_scope["base_sha"],
+                "candidate_sha": caller_scope["candidate_sha"],
+                "scope_digest": caller_scope["scope_digest"],
+                "fixture_digest": caller_scope["fixture_digest"],
+            },
+        )
+    except ValueError:
+        return "scope binding incomplete"
+    if invalidation["status"] != "UNCHANGED":
+        return "stale binding"
+    return "no trusted reviewer registration"
 
 
 def _load_receipt_file(path_value: Any) -> dict | None:
+    """Read bytes for inspection. A readable path is not a trusted issuance."""
     if not isinstance(path_value, str) or not path_value.strip():
         return None
     path = Path(path_value)
@@ -62,26 +102,13 @@ def json_loads(data: bytes) -> Any:
 
 
 def _verified_original(opened: Mapping[str, Any], candidate: str, scope: Any) -> str | None:
-    """Return the file verdict only when the opened receipt is the TA original."""
-    if opened.get("builder_signed") is True:
-        raise ValueError("BUILDER_PASS_FORBIDDEN")
-    if opened.get("test_only") is True or opened.get("signed_by") == "candidate-self-report":
-        return None
-    issuer = opened.get("issuer") or opened.get("reviewer")
-    verdict = opened.get("verdict")
-    if issuer != TA_REVIEWER_ID or verdict not in _FORMAL_VERDICTS:
-        return None
-    if opened.get("candidate_sha") != candidate or not _scope_matches(opened.get("scope"), scope):
-        return None
-    return str(verdict)
+    """No candidate-supplied file is an original. Public id plus bytes is not issuance."""
+    del opened, candidate, scope
+    return None
 
 
 def _judge_receipt(receipt: Mapping[str, Any], candidate: str, scope: Any) -> tuple[dict, str]:
-    """PASS only for an opened TA Reviewer original. An untrusted dict is BLOCKED.
-
-    A dict that says REVISE is not an independent opinion. REVISE or BLOCKED is
-    passed through only after the opened file verifies as that reviewer's receipt.
-    """
+    """Untrusted material stays BLOCKED. This entry cannot mint a reviewer PASS."""
     if receipt.get("builder_signed") is True:
         raise ValueError("BUILDER_PASS_FORBIDDEN")
     if receipt.get("signed_by") == "candidate-self-report":
@@ -93,42 +120,18 @@ def _judge_receipt(receipt: Mapping[str, Any], candidate: str, scope: Any) -> tu
     if isinstance(presented, str) and presented != candidate:
         return _blocked(scope, "STALE_PASS_CANDIDATE_CHANGED")
     receipt_scope = receipt.get("scope")
-    if isinstance(receipt_scope, dict) and not _scope_matches(receipt_scope, scope):
-        return _blocked(scope, "scope mismatch")
+    if isinstance(receipt_scope, dict):
+        gap = _scope_gap(receipt_scope, scope if isinstance(scope, dict) else {})
+        if gap != "no trusted reviewer registration":
+            return _blocked(scope, gap)
     if receipt.get("test_only") is True:
         return _blocked(scope, "TEST_ONLY evidence is not a PASS")
-    evidence = receipt.get("evidence")
-    if isinstance(evidence, list) and any(isinstance(item, dict) and item.get("test_only") is True for item in evidence):
-        return _blocked(scope, "TEST_ONLY evidence is not a PASS")
     opened = _load_receipt_file(receipt.get("path"))
+    if _verified_original(opened or receipt, candidate, scope) is not None:
+        raise RuntimeError("candidate material must not become a reviewer verdict")
     if opened is None:
         return _blocked(scope, "untrusted or empty proof")
-    verdict = _verified_original(opened, candidate, scope)
-    if verdict is None:
-        return _blocked(scope, "receipt is not a traceable TA reviewer original")
-    if verdict == "PASS":
-        return {
-            "verdict": "PASS",
-            "evidence": [{
-                "note": "ta reviewer receipt",
-                "issuer": TA_REVIEWER_ID,
-                "path": receipt.get("path"),
-                "test_only": False,
-                "runtime_pass": False,
-            }],
-            "scope": scope,
-        }, "OK"
-    return {
-        "verdict": verdict,
-        "evidence": [{
-            "note": "verified reviewer conclusion",
-            "issuer": TA_REVIEWER_ID,
-            "path": receipt.get("path"),
-            "test_only": False,
-            "runtime_pass": False,
-        }],
-        "scope": scope,
-    }, "BLOCKED"
+    return _blocked(scope, "readable file is not a reviewer issuance")
 
 
 def run_n11(

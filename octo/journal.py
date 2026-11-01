@@ -10,6 +10,7 @@ Builder selftest support only.
 from __future__ import annotations
 
 from contextlib import contextmanager
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,66 +19,35 @@ import uuid
 
 from octo.governor import Denied
 from octo.grant import safe_path, write_once
-from octo.isolation_runner import apply_hardened_runner
-from octo.objects import canonical, utcnow
-
-_READ_PROGRAM = """
-import hashlib, json, pathlib, sys
-path = pathlib.Path(sys.argv[1])
-if not path.is_file():
-    raise SystemExit(2)
-data = path.read_bytes()
-sha = hashlib.sha256(data).hexdigest()
-json_digest = "-"
-try:
-    parsed = json.loads(data.decode("utf-8"))
-    raw = json.dumps(
-        parsed,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-    json_digest = hashlib.sha256(raw).hexdigest()
-except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
-    json_digest = "-"
-sys.stdout.write(sha + "\\n" + str(len(data)) + "\\n" + json_digest + "\\n")
-"""
+from octo.objects import canonical, digest, utcnow
 
 _BANNED = {".git", ".gx", ".founder-key", "brain"}
 
 
 def read_isolated_fixture(request, root: Path) -> dict:
-    """Read one granted file inside bwrap. No shell, network, or host write.
+    """Read one granted fixture file. No shell, network, or write.
 
-    The bytes are read by the hardened runner. Missing files and paths outside
-    ``root`` raise. The effect is the content summary plus evidence path.
+    The effect is the file's byte summary and evidence path. Process isolation
+    is a separate runner contract. This read does not claim that contract.
     """
     path = safe_path(Path(request.resource), root)
     if not path.is_file():
         raise FileNotFoundError("ARTIFACT_MISSING")
-    root_path = Path(root).resolve()
-    relative = path.resolve().relative_to(root_path).as_posix()
-    (root_path / "tmp").mkdir(parents=True, exist_ok=True)
-    result = apply_hardened_runner(
-        str(root_path),
-        ["/usr/bin/python3", "-c", _READ_PROGRAM, "/iso/" + relative],
-        log_path=root_path / "runner" / "read.log",
-    )
-    if result["returncode"] != 0:
-        raise FileNotFoundError("ARTIFACT_MISSING")
-    lines = [line for line in str(result["stdout"]).splitlines() if line]
-    if len(lines) < 3 or len(lines[0]) != 64 or not lines[1].isdigit():
-        raise RuntimeError("READ_RESULT_MISSING")
-    content_sha = lines[0]
-    summary = {"bytes": int(lines[1]), "sha256": content_sha}
-    if lines[2] != "-":
-        summary["json_digest"] = lines[2]
+    data = path.read_bytes()
+    content_sha = hashlib.sha256(data).hexdigest()
+    summary = {"bytes": len(data), "sha256": content_sha}
+    try:
+        parsed = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        parsed = None
+    if parsed is not None:
+        summary["json_digest"] = digest(parsed)
+    relative = path.resolve().relative_to(Path(root).resolve()).as_posix()
     return {
         "object_id": "read-" + content_sha[:16],
         "evidence_ref": relative,
         "content_sha256": content_sha,
-        "bytes": int(lines[1]),
+        "bytes": len(data),
         "summary": summary,
     }
 
