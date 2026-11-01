@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from octo.closing import run_n11, run_n12, run_n13
+from octo.gateway import run_n10
+from octo.n9 import run_n9
 from octo.nodes import (
     EXCLUDED_NODE_IDS,
     emit_envelope,
@@ -76,3 +79,95 @@ def _guard_emitter() -> None:
 
 
 _guard_emitter()
+
+
+def _n9_inputs(request) -> dict:
+    return {
+        "actor": request.actor,
+        "action": request.action,
+        "resource": request.resource,
+        "parameters": request.parameters,
+        "intent_id": request.intent_id,
+        "idempotency_key": request.idempotency_key,
+        "git_candidate_sha": request.git_candidate_sha,
+        "tree_sha": request.tree_sha,
+        "grant_ref": request.grant_id,
+    }
+
+
+def _n10_inputs(request) -> dict:
+    return {
+        "action": request.action,
+        "grant_ref": request.grant_id,
+        "idempotency_key": request.idempotency_key,
+        "request_digest": request.digest,
+        "git_candidate_sha": request.git_candidate_sha,
+        "tree_sha": request.tree_sha,
+    }
+
+
+def run_standard(route_request, pack, *, at: str, request, store, now=None) -> dict[str, Any]:
+    """Full S1 run. N6 and N7 stay in scope_exclusions and are never envelopes."""
+    body = run_prefix(route_request, pack, at=at)
+    if body["status"] != "OK":
+        return body
+    gateway = pack["gateway"]
+    envelopes = list(body["envelopes"])
+    n9_env = run_n9(_n9_inputs(request), at=at, store=store, now=now)
+    envelopes.append(n9_env)
+    if n9_env["status"] != "OK":
+        body["envelopes"] = envelopes
+        body["status"] = n9_env["status"]
+        reject_excluded_envelopes(envelopes)
+        return body
+    n10_env = run_n10(_n10_inputs(request), at=at, gateway=gateway, request=request, now=now)
+    envelopes.append(n10_env)
+    if n10_env["status"] != "OK" or n10_env["output"] is None:
+        body["envelopes"] = envelopes
+        body["status"] = n10_env["status"]
+        reject_excluded_envelopes(envelopes)
+        return body
+    n11_inputs = {
+        "receipt_id": n10_env["output"]["receipt_id"],
+        "state": n10_env["output"]["state"],
+        "grant_ref": n10_env["output"]["grant_ref"],
+        "request_digest": request.digest,
+        "git_candidate_sha": request.git_candidate_sha,
+        "tree_sha": request.tree_sha,
+    }
+    n11_env = run_n11(n11_inputs, at=at)
+    envelopes.append(n11_env)
+    n12_env = run_n12(
+        {
+            "receipt_id": n11_inputs["receipt_id"],
+            "builder_id": "builder-selftest",
+            "verifier_id": "not-the-builder",
+            "claimed_state": "NOT_RUN",
+        },
+        at=at,
+    )
+    envelopes.append(n12_env)
+    if n12_env["status"] != "OK":
+        body["envelopes"] = envelopes
+        body["status"] = n12_env["status"]
+        reject_excluded_envelopes(envelopes)
+        return body
+    n13_env = run_n13(
+        {
+            "name": "n13-receipt.json",
+            "record": {
+                "receipt_id": n11_inputs["receipt_id"],
+                "state": n11_env["output"]["state"],
+                "git_candidate_sha": request.git_candidate_sha,
+                "tree_sha": request.tree_sha,
+                "selftest": "builder",
+            },
+        },
+        at=at,
+        store_root=store.root,
+    )
+    envelopes.append(n13_env)
+    reject_excluded_envelopes(envelopes)
+    body["envelopes"] = envelopes
+    body["status"] = "OK"
+    return body

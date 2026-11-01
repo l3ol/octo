@@ -1,6 +1,10 @@
 name: CI
 
+# pull_request starts this workflow only for PRs into main.
+# A PR into dev/product-s1-standard-loop does not start it.
+# workflow_dispatch can be started manually on a chosen ref; it is not a merge.
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
   pull_request:
