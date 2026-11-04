@@ -206,6 +206,17 @@ def _read_confined(root: Path, ref: Any) -> bytes | str:
     return b"".join(chunks)
 
 
+def load_trusted_raw(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> bytes | None:
+    """Re-read the confined original. Metadata is not a substitute for these bytes."""
+    payload = _read_confined(registry_view.root, record.get("raw_bytes_ref"))
+    if isinstance(payload, str):
+        return None
+    expected = record.get("bytes_sha256")
+    if not isinstance(expected, str) or hashlib.sha256(payload).hexdigest() != expected:
+        return None
+    return payload
+
+
 def open_registry(root: Path | None, *, store_root: Path | None = None) -> ReadOnlyRegistry | Empty:
     blocked = root_block(root, store_root=store_root)
     if blocked:

@@ -1,7 +1,9 @@
 """N11 verify, N12 capture, and N13 board entry.
 
-Builder selftest support only. N11 does not issue an independent PASS.
-runtime_pass stays false. Trust comes only from ``consume_trusted_original``.
+Builder selftest support only. runtime_pass stays false.
+Phase A ``TEST_FIXTURE_ONLY`` and ``MECHANISM_ACCEPT`` stay BLOCKED.
+Phase B maps a verdict re-parsed from trusted raw bytes and is not that ceiling.
+Trust comes only from ``consume_trusted_original``.
 A readable file that copies the public reviewer id is not an issuance.
 
 Spec SPEC-N11-TRUSTED-ORIGINAL-INTERFACE-v1
@@ -11,6 +13,7 @@ sha256 ``c9341bf7b3c149655de865953d03f46c19377e4a796e606590ae590adfc9bebf``.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from pathlib import Path
 from typing import Any, Mapping
@@ -30,6 +33,7 @@ from octo.trusted_original import (
     ReadOnlyRegistry,
     Rejected,
     consume_trusted_original,
+    load_trusted_raw,
     migration_claimed,
     normalize_binding,
     open_registry,
@@ -140,6 +144,83 @@ def _from_consume(result: ConsumeResult, scope: Any) -> tuple[dict, str]:
     return _blocked(scope, "verdict not PASS")
 
 
+_PHASE_B_MARKS = frozenset({"verdict", "binding_tuple", "source_authenticity"})
+_PHASE_B_VERDICTS = frozenset({"PASS", "REVISE", "BLOCKED", "FAIL"})
+_APPOINTMENT_SESSION_PREFIX = "6ae7886b"
+
+
+def _phase_b_blocked(scope: Any, note: str, *, original_verdict: str | None = None) -> tuple[dict, str]:
+    evidence = {
+        "note": note,
+        "test_only": False,
+        "runtime_pass": False,
+        "mechanism_accept": False,
+    }
+    if original_verdict is not None:
+        evidence["original_verdict"] = original_verdict
+    return {"verdict": "BLOCKED", "evidence": [evidence], "scope": scope}, "BLOCKED"
+
+
+def _phase_b_binding_matches(raw_binding: Any, runner_binding: Mapping[str, Any] | None) -> bool:
+    if not isinstance(raw_binding, Mapping) or not isinstance(runner_binding, Mapping):
+        return False
+    parsed = normalize_binding(raw_binding)
+    runner = normalize_binding(runner_binding)
+    if parsed is None or runner is None or parsed != runner:
+        return False
+    for key in ("task", "rule_version"):
+        if runner_binding.get(key) and raw_binding.get(key) != runner_binding.get(key):
+            return False
+    return True
+
+
+def _phase_b_source_authentic(document: Mapping[str, Any]) -> bool:
+    """Appointment-session read proof inside the raw original. Not an agent-id gate."""
+    auth = document.get("source_authenticity")
+    if not isinstance(auth, dict) or auth.get("kind") != "read_thread" or auth.get("endorsed") is not True:
+        return False
+    session = auth.get("appointment_session")
+    if not isinstance(session, str) or not session.startswith(_APPOINTMENT_SESSION_PREFIX):
+        return False
+    return auth.get("reviewer_id") == TA_REVIEWER_ID
+
+
+def phase_b_from_raw(
+    raw: bytes,
+    runner_binding: Mapping[str, Any] | None,
+    scope: Any,
+) -> tuple[dict, str] | None:
+    """Map a re-parsed original. None means these bytes are not a Phase B document.
+
+    TEST_FIXTURE and MECHANISM_ACCEPT never enter here. runtime_pass stays false.
+    """
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(document, dict) or not _PHASE_B_MARKS.intersection(document):
+        return None
+    verdict = document.get("verdict")
+    if verdict not in _PHASE_B_VERDICTS:
+        return _phase_b_blocked(scope, "PHASE_B_PARSE_FAILED")
+    if not _phase_b_binding_matches(document.get("binding_tuple"), runner_binding):
+        return _phase_b_blocked(scope, "BINDING_MISMATCH", original_verdict=verdict)
+    if not _phase_b_source_authentic(document):
+        return _phase_b_blocked(scope, "SOURCE_UNPROVEN", original_verdict=verdict)
+    evidence = {
+        "note": "PHASE_B",
+        "original_verdict": verdict,
+        "test_only": False,
+        "runtime_pass": False,
+        "mechanism_accept": False,
+    }
+    if verdict == "PASS":
+        return {"verdict": "PASS", "evidence": [evidence], "scope": scope}, "OK"
+    if verdict == "REVISE":
+        return {"verdict": "REVISE", "evidence": [evidence], "scope": scope}, "BLOCKED"
+    return {"verdict": "BLOCKED", "evidence": [evidence], "scope": scope}, "BLOCKED"
+
+
 def _judge_receipt(
     receipt: Mapping[str, Any] | None,
     candidate: str,
@@ -169,10 +250,22 @@ def _judge_receipt(
         _load_receipt_file(receipt.get("path"))
     if registry_empty is not None:
         return _from_consume(registry_empty, scope)
-    return _from_consume(
-        consume_trusted_original(binding, registry_view, fixture_hashes),
-        scope,
-    )
+    result = consume_trusted_original(binding, registry_view, fixture_hashes)
+    if (
+        isinstance(result, Found)
+        and result.mechanism_accept
+        and not result.test_only
+        and isinstance(registry_view, ReadOnlyRegistry)
+        and registry_view.production
+        and result.record.get("content_kind") != "TEST_FIXTURE"
+        and result.record.get("test_only") is not True
+    ):
+        raw = load_trusted_raw(registry_view, result.record)
+        if isinstance(raw, bytes):
+            gated = phase_b_from_raw(raw, binding if isinstance(binding, Mapping) else None, scope)
+            if gated is not None:
+                return gated
+    return _from_consume(result, scope)
 
 
 def _runner_binding(inputs: Mapping[str, Any], fixture_digest: str | None) -> dict[str, str] | None:
