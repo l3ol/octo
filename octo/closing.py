@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -499,6 +500,30 @@ def _phase_b_source_authentic(
     )
 
 
+class _FenceRejected(Exception):
+    """The bytes tried to be a fenced receipt and failed the fence rule."""
+
+
+_ONE_JSON_FENCE = re.compile(br"\A[ \t\r\n]*```json\n(.*)\n```[ \t\r\n]*\Z", re.DOTALL)
+
+
+def phase_b_json_bytes(raw: bytes) -> bytes:
+    """Bytes for strict ``json.loads``. The authenticity anchor stays ``raw``.
+
+    No fence: the full bytes are the JSON text. Exactly one top-level
+    ```json fence: only that body is parsed. Any other fence shape is rejected.
+    This does not strip, unescape, or rewrite ``raw``.
+    """
+    if b"```" not in raw:
+        return raw
+    if raw.count(b"```") != 2 or raw.count(b"```json") != 1:
+        raise _FenceRejected
+    matched = _ONE_JSON_FENCE.fullmatch(raw)
+    if matched is None:
+        raise _FenceRejected
+    return matched.group(1)
+
+
 def phase_b_from_raw(
     raw: bytes,
     runner_binding: Mapping[str, Any] | None,
@@ -510,10 +535,17 @@ def phase_b_from_raw(
     """Map a re-parsed original. None means these bytes are not a Phase B document.
 
     TEST_FIXTURE and MECHANISM_ACCEPT never enter here. runtime_pass stays false.
+    A fenced receipt is parsed from the single json fence. SHA and text checks
+    keep the full original bytes, including the fence.
     """
     try:
-        document = json.loads(raw.decode("utf-8"))
+        payload = phase_b_json_bytes(raw)
+        document = json.loads(payload.decode("utf-8"))
+    except _FenceRejected:
+        return _phase_b_blocked(scope, "FORMAT_BLOCKED")
     except (UnicodeError, json.JSONDecodeError):
+        if raw.lstrip().startswith((b"{", b"[")):
+            return _phase_b_blocked(scope, "FORMAT_BLOCKED")
         return None
     if not isinstance(document, dict) or not _PHASE_B_MARKS.intersection(document):
         return None

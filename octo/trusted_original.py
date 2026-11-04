@@ -50,6 +50,16 @@ ORIGINAL_SESSION_ID = ORIGINAL_REVIEWER_SESSION_ID
 REGISTRY_ENV = "OCTO_TRUSTED_ORIGINAL_ROOT"
 ALLOWLIST_ENV = "OCTO_TRUST_ALLOWLIST"
 CONTROL_PLANE_ENV = "OCTO_CONTROL_PLANE"
+# Ops installs this root. This module only reads it and does not create it.
+OPS_CONTROL_PLANE_ROOT = Path(
+    "/home/box/octo-handoff/control-plane/ops-protected-g3-de6649-fenced-t497u-20261104"
+)
+OPS_CONTROL_PLANE_SHA256 = {
+    "allowlist": "2f24e5d5a0a9e77646fd486f376b42a5a3427ecaf59c1e8be31933b9d7b1971e",
+    "controlplane_pin": "dd810f620d0414bad3733d836decd953c8647c5af79bf8c8ae31db2317d7cd49",
+    "registry": "77b95cdb49c74077b005256afe79ef3d0d88ee5f2ff1727fffa9cbbc79e700a5",
+    "evidence_tar": "7c57ec20f0240a7ae0b866d9378bc5f38f5bf3f2ccf664d5e6cc0ed71f162688",
+}
 _CONSUME_LOCK = threading.Lock()
 FIXTURE_DIGEST_ENV = "OCTO_FIXTURE_DIGEST"
 # Expected config value for the external issuer allowlist. Not an acceptance fallback.
@@ -253,15 +263,62 @@ def read_stored_json(registry_view: ReadOnlyRegistry, ref: Any) -> dict | None:
     return document if isinstance(document, dict) else None
 
 
+def _consume_journal_dir(root: Path) -> Path:
+    """Durable consume records beside the read-only root, never inside it."""
+    resolved = root.resolve()
+    stamp = hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()
+    return resolved.parent / ".octo-receipt-consume" / stamp
+
+
+def _consume_journal_path(root: Path, receipt_id: str) -> Path:
+    name = hashlib.sha256(receipt_id.encode("utf-8")).hexdigest()
+    return _consume_journal_dir(root) / name
+
+
+def receipt_is_consumed(root: Path, receipt_id: str) -> bool:
+    """True when a committed consume record is still on disk."""
+    if not isinstance(receipt_id, str) or not receipt_id:
+        return False
+    path = _consume_journal_path(root, receipt_id)
+    return path.is_file() and not path.is_symlink()
+
+
+def _durable_claim(root: Path, receipt_id: str) -> bool:
+    """Create the consume record once. There is no delete path."""
+    directory = _consume_journal_dir(root)
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return False
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_CLOEXEC
+    try:
+        fd = os.open(_consume_journal_path(root, receipt_id), flags, 0o444)
+    except FileExistsError:
+        return False
+    except OSError:
+        return False
+    try:
+        os.write(fd, receipt_id.encode("utf-8") + b"\n")
+    finally:
+        os.close(fd)
+    return True
+
+
 def commit_receipt_consume(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> bool:
-    """Atomically claim one receipt. False means another path already committed it."""
+    """Atomically claim one receipt on disk. False means it is already committed.
+
+    The in-memory set is only a cache. A new process reads the journal.
+    A failed verification must not call this. There is no discard.
+    """
     receipt_id = record.get("receipt_id")
     if not isinstance(receipt_id, str) or not receipt_id:
         return False
     key = str(registry_view.root)
     with _CONSUME_LOCK:
         seen = _CONSUMED_RECEIPTS.setdefault(key, set())
-        if receipt_id in seen:
+        if receipt_id in seen or receipt_is_consumed(registry_view.root, receipt_id):
+            return False
+        if not _durable_claim(registry_view.root, receipt_id):
             return False
         seen.add(receipt_id)
         return True
@@ -467,6 +524,25 @@ def load_control_plane(path: Path | None = None) -> dict[str, str] | None:
         pins["original_sha256"] = original_sha
         pins["message_text_sha256"] = original_sha
     return pins
+
+
+def ops_control_plane_status(root: Path | None = None) -> str:
+    """Read-only check of the Ops pin directory. ABSENT, MATCH, or MISMATCH.
+
+    This does not create, write, or replace the directory or any file in it.
+    """
+    target = OPS_CONTROL_PLANE_ROOT if root is None else root
+    if target.is_symlink() or not target.exists() or not target.is_dir():
+        return "ABSENT"
+    found: set[str] = set()
+    for path in target.rglob("*"):
+        if path.is_symlink() or not path.is_file():
+            continue
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        found.add(digest)
+    if set(OPS_CONTROL_PLANE_SHA256.values()) <= found:
+        return "MATCH"
+    return "MISMATCH"
 
 
 def load_allowlists(path: Path | None = None) -> tuple[dict[str, list[str]], str] | None:
@@ -691,7 +767,7 @@ def _review_decision(
     if not isinstance(receipt_id, str) or not receipt_id:
         return Rejected("EVIDENCE_UNVERIFIED")
     seen = _CONSUMED_RECEIPTS.setdefault(str(registry_view.root), set())
-    if receipt_id in seen:
+    if receipt_id in seen or receipt_is_consumed(registry_view.root, receipt_id):
         return Rejected("EVIDENCE_UNVERIFIED")
     verified = _gap03_readonly(registry_view.root, record, actual)
     if verified is not True:

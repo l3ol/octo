@@ -1,0 +1,369 @@
+```json
+{
+  "kind": "REVIEW_RECEIPT",
+  "receipt_class": "INDEPENDENT_WRITTEN_REVIEW",
+  "issuer_id": "TA-CHAT-REVIEWER-OCTO-20261101-01",
+  "verdict": "BLOCKED",
+  "reason": "固定候选与A2摘要已获得多项独立验证，TEST_ONLY Grant的MAC也已独立复算通过。但截至本次独立评审，尚未完成真实Reviewer原件的认证读取、受保护控制面pin及G3隔离根的独立验链。现有N11运行结果为BLOCKED/ROOT_UNAVAILABLE，Tester的Phase B正向结果均明确runtime_pass=false。此外，固定源码使用进程内集合登记已消费Receipt，尚不能满足跨进程或重启后的不可重放证明。因此不能签发Product G3 PASS。",
+  "content_kind": "REVIEW_RECEIPT",
+  "test_only": false,
+  "product_pass": false,
+  "runtime_pass": false,
+  "merge_authorized": false,
+  "deployment_authorized": false,
+  "path_b_authorized": false,
+  "binding_tuple": {
+    "route": "internal_readonly",
+    "base_sha": "5443c9b4dde7fc208a0a72457c87904650829f77",
+    "candidate_sha": "de6649b42f8171c9e9eb28fa4df2b3f1c9b57621",
+    "scope_digest": "a22050c595596bd912bf90868e5e25c3507e76ff64a36ec31393dd2654b09c8d",
+    "fixture_digest": "0a1107882db50fb9dd1e6e711f898f98c552709af966ca102a83bf4b8e849992"
+  },
+  "qualification": {
+    "appointment_basis": "Founder在当前对话转达的最新任命，以及固定候选中FORMAL_REVIEWER_ID的独立核对",
+    "formal_reviewer_id_in_candidate": "TA-CHAT-REVIEWER-OCTO-20261101-01",
+    "appointed_chat_id_declared": "6ae7886b-23c8-83e8-a136-f1b52b33d01f",
+    "appointed_chat_id_server_verified": false,
+    "historical_agent_id": "agt_6ae61c44e54081918e81a0adea556ef8",
+    "historical_identity_inherited": false,
+    "independence_statement": "本Reviewer未参与de6649候选的Chief互审、产品设计、代码实现或候选修改。本次仅执行独立只读审查、摘要复算和测试证据核验。此前参与的GATES99fd审查属于独立工单，其结论不用于Product G3。",
+    "independence_confidence": "CONVERSATIONAL_AND_REPOSITORY_EVIDENCE_CONFIRMED",
+    "server_native_principal_attestation": "NOT_AVAILABLE",
+    "opaque_agent_id": null,
+    "server_native_call_id": null,
+    "evidence_readability": {
+      "github_candidate": "READ_OK",
+      "github_ci_run": "READ_OK",
+      "github_source_code": "READ_OK",
+      "mechanical_relay": "39项原文在请求中可读，已对选定内容及摘要作独立复核",
+      "mechanical_relay_declared_bytes": 204329,
+      "mechanical_relay_declared_sha256": "287c038ff68c1a77a49988b97f86c306be2e9f93f43de36f808b84bbc702e6fd",
+      "mechanical_relay_full_sha256_independently_verified": false,
+      "external_tar_bytes_independently_read": false,
+      "authenticated_current_read_thread_response_at_review": "NOT_AVAILABLE",
+      "current_review_receipt_source_authenticity_at_review": "NOT_YET_ATTESTED",
+      "rationale": "已读取本轮机械输入与GitHub原始对象，但未将消息中声明的39项SHA直接视为全量独立校验。没有恢复旧Agent身份、调用RDC或伪造ChatGPT服务端会话证明。"
+    }
+  },
+  "evidence": {
+    "frozen_basis": {
+      "g2_plan_gate_sha256": "c441e9683b346b98f976e311e3878ceabe2f9fa2f355cc43eb8607b965c4d04f",
+      "a2_addendum_sha256": "f08338f922404f637f90a3118d1aaf5bd0f3148508f711ece5a85d00d7e05f09",
+      "cci_sha256": "958fa84d417ff13eab55dfd32e30f329f365f86e41bb8a9d8f91c91a82745d0b",
+      "n11_spec_sha256": "c9341bf7b3c149655de865953d03f46c19377e4a796e606590ae590adfc9bebf",
+      "collector_origin_contract_sha256": "f873f188b36cf8ad7aafc9dd0983ba0c2ca547ebecb27106b9af38aed0f78b94",
+      "basis_status": "输入原文已审；未重新签发、修改或取代冻结合同"
+    },
+    "github_candidate": {
+      "source": "https://api.github.com/repos/l3ol/octo/commits/de6649b42f8171c9e9eb28fa4df2b3f1c9b57621",
+      "read_result": "SUCCESS",
+      "candidate_sha": "de6649b42f8171c9e9eb28fa4df2b3f1c9b57621",
+      "tree_sha": "d5f85994190d564b9917286bb7705093e0272cf1",
+      "parent_sha": "5f386cfdc0f9be02f13a0cf85c3f3aa6f55f2dcc",
+      "base_sha": "5443c9b4dde7fc208a0a72457c87904650829f77",
+      "merge_base_checked": true,
+      "merge_base_match": true,
+      "ahead_of_base": 41,
+      "behind_base": 0,
+      "pr_number": 11,
+      "pr_state": "open",
+      "pr_draft": true,
+      "pr_merged": false,
+      "candidate_modified_by_reviewer": false
+    },
+    "github_ci": {
+      "source": "https://api.github.com/repos/l3ol/octo/actions/runs/41848555264",
+      "run_id": 41848555264,
+      "run_attempt": 1,
+      "job_id": 126638381939,
+      "head_sha_match": true,
+      "status": "completed",
+      "conclusion": "success",
+      "runner": "ubuntu-24.04",
+      "actor": "cursor[bot]",
+      "triggering_actor": "cursor[bot]",
+      "job_token_permissions": [
+        "contents:read",
+        "metadata:read",
+        "packages:read"
+      ],
+      "command": "PYTHONPATH=. pytest tests/ -q",
+      "command_exit_code": 0,
+      "passed": 236,
+      "xfailed": 1,
+      "raw_job_log_sha256": "bbc338c6b76de1710449e254475f66ad053e89ef611ccdd6159cbed6c7ebdf2a",
+      "raw_job_log_utf8_bytes": 24016,
+      "raw_job_log_sha_method": "从GitHub只读日志响应取完整文本，使用通过标准测试向量的SHA-256实现独立计算",
+      "github_actions_artifact_count": 0,
+      "independent_acceptance": false,
+      "g3_pass_evidence": false
+    },
+    "a2": {
+      "candidate_tree_parent_base": "MATCH",
+      "scope_digest": {
+        "value": "a22050c595596bd912bf90868e5e25c3507e76ff64a36ec31393dd2654b09c8d",
+        "result": "MATCH",
+        "method": "读取固定GitHub SCOPE-MANIFEST并重新计算canonical JSON SHA-256"
+      },
+      "template_digest": {
+        "value": "034277eceff049b3105592cc3d96031852c83771c0a519f08d2aec8a3ba86c59",
+        "result": "MATCH",
+        "method": "重新读取两个固定静态模板，计算各文件SHA-256和模板inventory canonical digest"
+      },
+      "isolation_policy_digest": {
+        "value": "b6097b2d2e70ca230ef10b937b1a1f73a1583693d582ca4bf2c302d00964c818",
+        "result": "MATCH",
+        "method": "读取固定GitHub隔离策略并复算canonical JSON SHA-256"
+      },
+      "runtime_artifact_digest": {
+        "value": "2868dfa05750ed1a52f6a570985eb188be3b727a8badd49222dc04756ccac936",
+        "result": "DECLARED_INVENTORY_DIGEST_MATCH",
+        "inventory_item_count": 10,
+        "required_kinds_present": [
+          "grant",
+          "request",
+          "receipt",
+          "log"
+        ],
+        "method": "按固定octo.g3_review规则，对机械原文中的10项声明记录排序并复算canonical digest",
+        "all_ten_original_files_rehashed": false,
+        "all_ten_files_current_runtime_presence_verified": false
+      },
+      "fixture_digest": {
+        "value": "0a1107882db50fb9dd1e6e711f898f98c552709af966ca102a83bf4b8e849992",
+        "result": "MATCH",
+        "method": "独立计算template_digest、runtime_artifact_digest、isolation_policy_digest三列的canonical组合SHA-256",
+        "limitation": "runtime_artifact_digest的输入部分仍依赖未全量独立读取的外置文件清单"
+      },
+      "parent_is_not_base": true,
+      "old_tip_receipts_reused_as_current_g3_pass": false
+    },
+    "n9_test_only_grant": {
+      "grant_id": "g-ops-a2-tip-de6649",
+      "issued_via": "TEST_FIXTURE",
+      "test_only": true,
+      "grant_original_bytes": 633,
+      "grant_original_sha256": "0b6d24bc78e8a90d4c9e89c6984dce19cfecf43ae3b2adccebc744700e742b3b",
+      "grant_original_sha256_recomputed": true,
+      "test_key_bytes": 32,
+      "test_key_sha256_match": true,
+      "test_only_hmac_recomputed": true,
+      "mac_match": true,
+      "request_digest": "133c9f308fb04f79ad2800fee2a123be33ba485b314fb990432a62c776a870d7",
+      "request_digest_recomputed": true,
+      "request_digest_match": true,
+      "grant_candidate_match": true,
+      "grant_tree_match": true,
+      "test_key_disclosed_in_receipt": false,
+      "six_validator_implementation_read": true,
+      "positive_receipt": "N9_SIX_OK",
+      "all_six_negative_runtime_receipts_independently_verified": false,
+      "production_grant_required_as_new_precondition": false,
+      "finding": "TEST_ONLY隔离域的MAC与正向授权机制获得独立密码学校验；没有把测试Grant伪升为生产授权。"
+    },
+    "g2_eleven_nodes": {
+      "N1": {
+        "observed": "OK",
+        "assessment": "固定运行日志中的输入输出形状与冻结Intent字段一致，未独立执行"
+      },
+      "N2": {
+        "observed": "PARTIAL",
+        "assessment": "当前de6649标准运行的sources和key_evidence为空，open_states含SOURCE_UNAVAILABLE。旧8169三源实际查询证据可作为有界历史血缘，不直接替代当前四元组的G3运行结果。"
+      },
+      "N3": {
+        "observed": "OK",
+        "assessment": "kill_line为SOURCE_UNAVAILABLE，原因标注TEST_FIXTURE；属于形状与有界运行证据"
+      },
+      "N4": {
+        "observed": "OK",
+        "assessment": "输出隔离store候选方案；未证明生产可用性"
+      },
+      "N5": {
+        "observed": "OK",
+        "assessment": "事实条目为CLAIM，不能将其转换为已经验证的FACT"
+      },
+      "N8": {
+        "observed": "OK",
+        "assessment": "Standard internal_readonly路径已形成，N6/N7没有产生伪造envelope"
+      },
+      "N9": {
+        "observed": "OK/ALLOW/N9_SIX_OK",
+        "assessment": "正向Grant/request摘要及TEST_ONLY MAC独立匹配；六项拒绝场景尚未由本Reviewer逐条执行"
+      },
+      "N10": {
+        "observed": "OK/SUCCEEDED",
+        "assessment": "提交的Journal有PREPARED、DISPATCHED、SUCCEEDED记录，request_digest与N9一致。实际独立读取、幂等重入和UNKNOWN_COMMIT恢复未在本轮Reviewer执行。"
+      },
+      "N11": {
+        "observed": "BLOCKED/ROOT_UNAVAILABLE",
+        "assessment": "当前真实标准运行未取得可信Reviewer原件。Tester正向PHASE_B日志属于测试路径，所有相关条目runtime_pass=false，不构成正式G3验收。"
+      },
+      "N12": {
+        "observed": "OK",
+        "assessment": "提交记录显示外置capture Receipt写入，SHA为0ea36541d1392d53b50bd118536399ebbd6eb725c1f44ef6c800c59b24c696aa；尚未独立重放原运行"
+      },
+      "N13": {
+        "observed": "BLOCKED",
+        "assessment": "独立verify尚未成立，handoff_state=NOT_READY、next_legal_action=wait-for-independent-verify，与最终阻断状态一致"
+      }
+    },
+    "n11_source_review": {
+      "candidate_source": "https://github.com/l3ol/octo/blob/de6649b42f8171c9e9eb28fa4df2b3f1c9b57621/octo/trusted_original.py",
+      "phase_b_source": "https://github.com/l3ol/octo/blob/de6649b42f8171c9e9eb28fa4df2b3f1c9b57621/octo/closing.py",
+      "formal_reviewer_id_match": true,
+      "historical_agent_separated_in_source": true,
+      "five_field_binding_implemented": true,
+      "optional_original_sha_and_collector_receipt_implemented": true,
+      "protected_pin_content_chain_implemented": true,
+      "test_fixture_positive_not_promoted": true,
+      "source_proof_current_round_at_review": "NOT_AVAILABLE",
+      "authenticated_pin_from_actual_read_thread_at_review": "NOT_VERIFIED",
+      "current_original_bytes_authenticated_at_review": false,
+      "current_registry_record_at_review": "NOT_VERIFIED",
+      "single_consume_source_finding": {
+        "source_location": "octo/trusted_original.py:256-267",
+        "observed_implementation": "_CONSUMED_RECEIPTS为进程内dict/set，commit_receipt_consume使用threading.Lock",
+        "in_process_atomicity": "SOURCE_IMPLEMENTED",
+        "cross_process_durability": "NOT_IMPLEMENTED_IN_THIS_CONSUMPTION_RECORD",
+        "restart_replay_protection": "NOT_PROVEN",
+        "contract_reference": "N11 Phase B单次原子消费与成功后不可重放"
+      }
+    },
+    "isolation": {
+      "ops_supplied_command": "bwrap --die-with-parent --new-session --unshare-net --unshare-pid --as-pid-1",
+      "ops_reported_exit_code": 0,
+      "ops_original_log_declared_sha256": "0cefb150f1ec1a7492ae6edb02adace4e7a2eda18794310f93ddd1ac089bf266",
+      "ops_reported_pid": 1,
+      "ops_reported_network_errno": 101,
+      "ops_reported_dev_write_errno": 30,
+      "ops_reported_usr_write_errno": 30,
+      "reviewer_independently_executed_bwrap": false,
+      "current_candidate_readonly_mount_proven": false,
+      "current_trusted_root_readonly_mount_proven": false,
+      "finding": "原日志支持进程/网络隔离与部分系统挂载只读的Ops观察，但当前运行将整个/iso作为可写bind，未提供本轮Reviewer对candidate及trusted root的独立内核只读证明。旧8169的专用ro-bind测试不能自动替代当前候选G3。"
+    },
+    "prior_8169_lineage": {
+      "candidate_sha": "81697a28318f24e58875e53dd8870579c3b096ee",
+      "lineage": "Ops仓外实际查询 -> 查询Receipt -> bound -> candidate N2消费 -> N10实际读取",
+      "query_receipts_sha256_declared": "94593575f78d425680d9860f627f047ed8f5c4b87149d0c3424aa5c318c64e1a",
+      "n2_envelope_sha256_declared": "1ca12e97d777e7608bed1350e27513a04dfe95ebabaf3f74e43d21a56dbc7c78",
+      "n10_envelope_sha256_declared": "9f7abbd6a65556ea43f5070f1fd2ec2c3a524e7bc61f611eaf2b5dff3146481b",
+      "assessment": "属于有界真实查询与读取的历史专证，不是手填假数据，也不能直接声明当前de6649具有相同运行时证据或G4能力。"
+    },
+    "tester_writer_reader": {
+      "writer_adapter_sha256_declared": "6e620c14473e8b1afe507a149408f818cbf08823e3570a9f322900aac36c32c1",
+      "reader_tip": "de6649b42f8171c9e9eb28fa4df2b3f1c9b57621",
+      "matrix_sha256_declared": "4841a26f8e28eed9bec87938c83579f8624571eae7fc63ace206664bbc42dd1e",
+      "reported_rows": 41,
+      "reported_pass_rows": 40,
+      "reported_policy_cite_rows": 1,
+      "current_candidate_reader_code_independently_read": true,
+      "external_writer_original_bytes_independently_rehashed": false,
+      "positive_test_vectors": "EVIDENCED_AS_TEST_INPUT",
+      "negative_test_vectors": "EVIDENCED_AS_TEST_INPUT",
+      "actual_current_round_source_attestation_at_review": false,
+      "runtime_pass": false
+    },
+    "actual_reviewer_operations": [
+      {
+        "operation": "GitHub read-only GET commit, compare, PR11 and CI run",
+        "result": "SUCCESS",
+        "exit_code": 0
+      },
+      {
+        "operation": "GitHub read-only fetch fixed source, jobs, steps and full job log",
+        "result": "SUCCESS",
+        "exit_code": 0
+      },
+      {
+        "operation": "Independent canonical SHA-256 recomputation of scope, template, isolation and supplied runtime inventory",
+        "result": "MATCH",
+        "exit_code": 0
+      },
+      {
+        "operation": "Independent TEST_ONLY HMAC, Grant SHA-256 and AuthorizationRequest digest recomputation",
+        "result": "MATCH",
+        "exit_code": 0
+      },
+      {
+        "operation": "Inspect available authenticated ChatGPT read_thread capability",
+        "result": "NO_ELIGIBLE_CONNECTED_SOURCE_NATIVE_READER_IDENTIFIED",
+        "exit_code": null
+      },
+      {
+        "operation": "Independent Product G3 protected-root Linux execution",
+        "result": "NOT_RUN",
+        "exit_code": null
+      }
+    ],
+    "write_boundary": {
+      "github_product_writes": 0,
+      "candidate_edits": 0,
+      "rendezvous_or_new_connections": 0,
+      "rdc_calls_for_this_review": 0,
+      "m0_rerun": false,
+      "merge": false,
+      "deploy": false,
+      "path_b": false,
+      "gates_99fd_acceptance_reused": false
+    }
+  },
+  "must_fix": [
+    {
+      "id": "G3-01-CURRENT-REVIEWER-ORIGIN",
+      "priority": "P0",
+      "status_at_review": "BLOCKED",
+      "requirement": "由既有认证读取入口取得本次Reviewer回复的完整原始响应，固定thread/turn/message/completed状态及agentMessage.text原始字节；由不可被Writer或candidate选择的受保护控制面生成pin，并与本Receipt及最新任命、五字段binding逐项核对。",
+      "boundary": "不得继承历史agt身份，不得自行发明server-native调用ID，不得以本地metadata或对话转抄SHA代替来源证明。"
+    },
+    {
+      "id": "G3-02-TRUSTED-ROOT-AND-RELAY",
+      "priority": "P0",
+      "status_at_review": "BLOCKED",
+      "requirement": "通过既有一次性relay保存本轮Reviewer原件、custody、registry及真实service-response来源；验证三处原文字节SHA一致、not_issuer=true、当前allowlist匹配。由Ops提供当前候选下runner对受保护根和candidate的实际只读、无越界写入证据。",
+      "boundary": "不要求新增账号、key、常驻通道或生产Grant。"
+    },
+    {
+      "id": "G3-03-N11-SINGLE-ATOMIC-CONSUME",
+      "priority": "P0",
+      "status_at_review": "REQUIRES_CORRECTION_OR_STRONGER_PROOF",
+      "requirement": "针对固定源码中进程内已消费集合，提供跨进程和重启后的原子单次消费、失败不污染、成功后不可重放的独立证据；若无法满足冻结合同，按正常候选修订与A2失效规则处理，不在本Reviewer工单中直接改代码。",
+      "source": "octo/trusted_original.py:256-267"
+    },
+    {
+      "id": "G3-04-CURRENT-TIP-RUNTIME-COVERAGE",
+      "priority": "P1",
+      "status_at_review": "PARTIAL",
+      "requirement": "补足当前de6649四元组下完整外置工件的独立字节核验、N2非空读取血缘、N9六个拒绝场景、N10幂等和UNKNOWN_COMMIT、N11双端来源pin、N12/N13独立结果及真实隔离审查。旧8169有界专证与当前Tester日志可复用为对照，但不得当作独立G3 PASS。",
+      "boundary": "N6/N7/Full、G4、生产部署、Path B均不属于本次范围。"
+    }
+  ],
+  "format_correction": {
+    "purpose": "仅修正Reviewer回执的JSON序列化格式",
+    "new_original": true,
+    "supersedes_verdict": false,
+    "prior_original_preserved": true,
+    "prior_original_sha256": "3f74a3ecbb4421bc9e62d2ce6c20546a86fa7ed5f30613ddab51de8e7a03322c",
+    "verdict_changed": false,
+    "binding_changed": false,
+    "qualification_changed": false,
+    "must_fix_substance_changed": false,
+    "candidate_changed": false,
+    "post_review_authenticated_source_reported": {
+      "thread_id": "c10f950f-70c2-46ba-8168-fa2a4179fea3",
+      "message_id": "0b76817f-0b7f-4d22-8da9-7be28307d4b0",
+      "prior_message_bytes": 18608,
+      "prior_message_sha256": "3f74a3ecbb4421bc9e62d2ce6c20546a86fa7ed5f30613ddab51de8e7a03322c",
+      "read_thread_response_bytes": 65188,
+      "read_thread_response_sha256": "58dacde710d77aa633ba057d39d87aecb76606c4cc35b3480712f9941564ba89",
+      "source": "Founder转达的当前已取得认证读取结果",
+      "independently_retrieved_by_this_reviewer": false,
+      "effect_on_original_verdict": "NONE"
+    },
+    "new_message_sha256": null,
+    "new_message_sha256_note": "本Reviewer不预填当前回复尚未由认证Collector实际收取后的原始字节SHA。"
+  },
+  "next_legal_action": "维持固定候选de6649及现有G2边界不变；由已有AI角色继续验证当轮认证来源与隔离根证据，并纠正或证明单次消费问题，随后由本独立Reviewer按冻结合同重新核验。未取得全部证据之前维持BLOCKED，不调用verify_state_update，不发布Product PASS。",
+  "final_disposition": "PRODUCT_G3_BLOCKED_CURRENT_ROUND_NO_RUNTIME_PASS"
+}
+```
