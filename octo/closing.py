@@ -287,14 +287,23 @@ def _collector_matches(
     """Cross-check a Writer transfer mirror against pin and actual bytes.
 
     This is not the source of trust. The pin anchor is
-    expected_service_response_sha256. A transfer or custody hash cannot
-    replace it. collector_receipt_id is not required and is not minted here.
+    expected_service_response_sha256. Collection time and source come from
+    the protected pin. A transfer value for either field, when present, must
+    match that pin. collector_receipt_id is not required and is not minted here.
     """
     if "collector_receipt_id" in transfer:
         receipt_id = transfer.get("collector_receipt_id")
         if not isinstance(receipt_id, str) or not receipt_id:
             return False
-    if not isinstance(transfer.get("collected_at"), str) or not transfer["collected_at"]:
+    collected_at = pin.get("collected_at")
+    source = pin.get("collection_source")
+    if not isinstance(collected_at, str) or not collected_at:
+        return False
+    if not isinstance(source, str) or not source:
+        return False
+    if "collected_at" in transfer and transfer.get("collected_at") != collected_at:
+        return False
+    if "collection_source" in transfer and transfer.get("collection_source") != source:
         return False
     # Pin, the external allowlist file, and the transfer must be the same digest.
     if (

@@ -215,6 +215,8 @@ def _control_plane() -> dict:
         "scope_digest": runner["scope_digest"],
         "fixture_digest": runner["fixture_digest"],
         "allowlist_sha256": hashlib.sha256(_allow_bytes()).hexdigest(),
+        "collection_source": "read_thread",
+        "collected_at": AT,
     }
 
 
@@ -279,6 +281,8 @@ def _apply_reader_pin(
     plane.setdefault("expected_original_sha256", original)
     plane.setdefault("original_sha256", original)
     plane.setdefault("message_text_sha256", original)
+    plane.setdefault("collection_source", "read_thread")
+    plane.setdefault("collected_at", AT)
 
 
 def _seal_reader_files(
@@ -1366,3 +1370,65 @@ def test_reader_chain_accepts_synonym_pin_without_collector_receipt_id(tmp_path,
     assert loaded["expected_service_response_sha256"] == loaded["service_response_sha256"] == loaded["raw_service_response_sha256"]
     assert loaded["expected_service_response_sha256"] == stored["expected_service_response_sha256"]
     assert loaded["collector_receipt_sha256"] == hashlib.sha256((tmp_path / _RECEIPT_NAME).read_bytes()).hexdigest()
+    assert loaded["collection_source"] == "read_thread"
+    assert loaded["collected_at"] == AT
+
+
+def test_nf1_02_pin_missing_collection_source_or_collected_at(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    for name, key in (("source", "collection_source"), ("time", "collected_at")):
+        note = _blocked_note(
+            tmp_path / name,
+            monkeypatch,
+            raw=raw,
+            receipt_id=f"nf102-{name}",
+            omit_pin=(key,),
+        )
+        assert note == "SOURCE_UNPROVEN"
+        assert load_control_plane(tmp_path / name / "control-plane.json") is None
+
+
+def test_nf3_01_transfer_collected_at_must_match_pin(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    note = _blocked_note(
+        tmp_path / "time",
+        monkeypatch,
+        raw=raw,
+        receipt_id="nf301",
+        transfer_overrides={"collected_at": "1999-01-01T00:00:00+00:00"},
+    )
+    assert note == "SOURCE_UNPROVEN"
+    loaded = load_control_plane(tmp_path / "time" / "control-plane.json")
+    assert loaded is not None
+    assert loaded["collected_at"] == AT
+    transfer = json.loads((tmp_path / "time" / "reg" / "transfers" / "transfer-1.json").read_text(encoding="utf-8"))
+    assert transfer["collected_at"] != loaded["collected_at"]
+    source_note = _blocked_note(
+        tmp_path / "source",
+        monkeypatch,
+        raw=raw,
+        receipt_id="nf301-source",
+        transfer_overrides={"collection_source": "writer-self-report"},
+    )
+    assert source_note == "SOURCE_UNPROVEN"
+    source_pin = load_control_plane(tmp_path / "source" / "control-plane.json")
+    assert source_pin is not None
+    assert source_pin["collection_source"] == "read_thread"
+    mirrored = json.loads((tmp_path / "source" / "reg" / "transfers" / "transfer-1.json").read_text(encoding="utf-8"))
+    assert mirrored["collection_source"] != source_pin["collection_source"]
+
+
+def test_nf3_03_transfer_source_without_pin_source_is_rejected(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    note = _blocked_note(
+        tmp_path,
+        monkeypatch,
+        raw=raw,
+        receipt_id="nf303",
+        omit_pin=("collection_source",),
+        transfer_overrides={"collection_source": "writer-self-report"},
+    )
+    assert note == "SOURCE_UNPROVEN"
+    assert load_control_plane(tmp_path / "control-plane.json") is None
+    transfer = json.loads((tmp_path / "reg" / "transfers" / "transfer-1.json").read_text(encoding="utf-8"))
+    assert transfer["collection_source"] == "writer-self-report"

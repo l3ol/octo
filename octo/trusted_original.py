@@ -392,9 +392,10 @@ def load_control_plane(path: Path | None = None) -> dict[str, str] | None:
     ``collector_receipt_sha256`` binds a separate receipt file when that file
     exists; a missing file is not by itself a failure. ``expected_original_sha256``,
     ``original_sha256``, and ``message_text_sha256`` are optional and are
-    checked when present. Writer may mint ``registration_id`` or
-    ``registrar_operation_id`` for local tracking only. ``collector_receipt_id``
-    is not a pin and must not be invented.
+    checked when present. ``collection_source`` and ``collected_at`` are
+    required non-empty strings and are the collection authority. Writer may
+    mint ``registration_id`` or ``registrar_operation_id`` for local tracking
+    only. ``collector_receipt_id`` is not a pin and must not be invented.
     """
     if path is None:
         env = os.environ.get(CONTROL_PLANE_ENV)
@@ -432,6 +433,8 @@ def load_control_plane(path: Path | None = None) -> dict[str, str] | None:
         "scope_digest",
         "fixture_digest",
         "allowlist_sha256",
+        "collection_source",
+        "collected_at",
     )
     pins: dict[str, str] = {"thread_id": thread_id, "appointment_original_digest": appointment}
     for key in required:
