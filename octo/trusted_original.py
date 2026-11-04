@@ -206,6 +206,26 @@ def _read_confined(root: Path, ref: Any) -> bytes | str:
     return b"".join(chunks)
 
 
+def read_stored_json(registry_view: ReadOnlyRegistry, ref: Any) -> dict | None:
+    """Read one JSON object already stored in the registry. No new channel."""
+    payload = _read_confined(registry_view.root, ref)
+    if isinstance(payload, str):
+        return None
+    try:
+        document = json.loads(payload.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return None
+    return document if isinstance(document, dict) else None
+
+
+def release_consumed_receipt(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> None:
+    """Drop a receipt marked before Phase B mapping failed, so the same id can be retried."""
+    receipt_id = record.get("receipt_id")
+    seen = _CONSUMED_RECEIPTS.get(str(registry_view.root))
+    if isinstance(receipt_id, str) and seen is not None:
+        seen.discard(receipt_id)
+
+
 def load_trusted_raw(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> bytes | None:
     """Re-read the confined original. Metadata is not a substitute for these bytes."""
     payload = _read_confined(registry_view.root, record.get("raw_bytes_ref"))

@@ -37,6 +37,8 @@ from octo.trusted_original import (
     migration_claimed,
     normalize_binding,
     open_registry,
+    read_stored_json,
+    release_consumed_receipt,
     runner_base_sha,
 )
 
@@ -146,7 +148,7 @@ def _from_consume(result: ConsumeResult, scope: Any) -> tuple[dict, str]:
 
 _PHASE_B_MARKS = frozenset({"verdict", "binding_tuple", "source_authenticity"})
 _PHASE_B_VERDICTS = frozenset({"PASS", "REVISE", "BLOCKED", "FAIL"})
-_APPOINTMENT_SESSION_PREFIX = "6ae7886b"
+OWNER_APPOINTMENT_THREAD = "6ae7886b-23c8-83e8-a136-f1b52b33d01f"
 
 
 def _phase_b_blocked(scope: Any, note: str, *, original_verdict: str | None = None) -> tuple[dict, str]:
@@ -174,21 +176,56 @@ def _phase_b_binding_matches(raw_binding: Any, runner_binding: Mapping[str, Any]
     return True
 
 
-def _phase_b_source_authentic(document: Mapping[str, Any]) -> bool:
-    """Appointment-session read proof inside the raw original. Not an agent-id gate."""
-    auth = document.get("source_authenticity")
-    if not isinstance(auth, dict) or auth.get("kind") != "read_thread" or auth.get("endorsed") is not True:
+def _message_matches_original(message: Mapping[str, Any], raw: bytes, claimed: Any) -> bool:
+    actual = hashlib.sha256(raw).hexdigest()
+    text = message.get("text")
+    text_ok = isinstance(text, str) and text.encode("utf-8") == raw
+    sha_ok = isinstance(claimed, str) and claimed == actual
+    if isinstance(text, str) and isinstance(claimed, str):
+        return text_ok and sha_ok
+    return text_ok or sha_ok
+
+
+def _phase_b_source_authentic(
+    registry_view: ReadOnlyRegistry,
+    record: Mapping[str, Any],
+    raw: bytes,
+) -> bool:
+    """Stored service response plus transfer and custody. Self-reported endorsed flags are ignored."""
+    actual = hashlib.sha256(raw).hexdigest()
+    custody = read_stored_json(registry_view, record.get("custody_ref"))
+    if not isinstance(custody, dict) or custody.get("not_issuer") is not True or custody.get("raw_sha256") != actual:
         return False
-    session = auth.get("appointment_session")
-    if not isinstance(session, str) or not session.startswith(_APPOINTMENT_SESSION_PREFIX):
+    if custody.get("issuer") or custody.get("verdict") or custody.get("signed_by"):
         return False
-    return auth.get("reviewer_id") == TA_REVIEWER_ID
+    evidence = record.get("source_evidence") if isinstance(record.get("source_evidence"), dict) else {}
+    transfer_id = evidence.get("transfer_receipt_id")
+    if not isinstance(transfer_id, str) or not transfer_id or any(part in {"", ".", ".."} for part in Path(transfer_id).parts):
+        return False
+    transfer = read_stored_json(registry_view, f"transfers/{transfer_id}.json")
+    if not isinstance(transfer, dict):
+        return False
+    if transfer.get("raw_sha256") != actual or transfer.get("thread_id") != OWNER_APPOINTMENT_THREAD:
+        return False
+    service = read_stored_json(registry_view, record.get("service_response_ref"))
+    if not isinstance(service, dict) or service.get("thread_id") != OWNER_APPOINTMENT_THREAD:
+        return False
+    turn = service.get("turn")
+    if not isinstance(turn, dict) or turn.get("status") != "completed":
+        return False
+    message = service.get("agentMessage")
+    if not isinstance(message, dict) or message.get("type") != "text":
+        return False
+    return _message_matches_original(message, raw, service.get("message_sha256"))
 
 
 def phase_b_from_raw(
     raw: bytes,
     runner_binding: Mapping[str, Any] | None,
     scope: Any,
+    *,
+    registry_view: ReadOnlyRegistry,
+    record: Mapping[str, Any],
 ) -> tuple[dict, str] | None:
     """Map a re-parsed original. None means these bytes are not a Phase B document.
 
@@ -205,7 +242,7 @@ def phase_b_from_raw(
         return _phase_b_blocked(scope, "PHASE_B_PARSE_FAILED")
     if not _phase_b_binding_matches(document.get("binding_tuple"), runner_binding):
         return _phase_b_blocked(scope, "BINDING_MISMATCH", original_verdict=verdict)
-    if not _phase_b_source_authentic(document):
+    if not _phase_b_source_authentic(registry_view, record, raw):
         return _phase_b_blocked(scope, "SOURCE_UNPROVEN", original_verdict=verdict)
     evidence = {
         "note": "PHASE_B",
@@ -262,8 +299,16 @@ def _judge_receipt(
     ):
         raw = load_trusted_raw(registry_view, result.record)
         if isinstance(raw, bytes):
-            gated = phase_b_from_raw(raw, binding if isinstance(binding, Mapping) else None, scope)
+            gated = phase_b_from_raw(
+                raw,
+                binding if isinstance(binding, Mapping) else None,
+                scope,
+                registry_view=registry_view,
+                record=result.record,
+            )
             if gated is not None:
+                if gated[0]["evidence"][0].get("note") != "PHASE_B":
+                    release_consumed_receipt(registry_view, result.record)
                 return gated
     return _from_consume(result, scope)
 
