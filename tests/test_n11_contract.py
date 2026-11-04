@@ -99,10 +99,14 @@ def _open(root: Path):
     return opened
 
 
-def test_mf_n11_01_runner_carries_task_and_rule_version(tmp_path, monkeypatch):
+def test_mf_n11_01_five_field_path_does_not_require_extension(tmp_path, monkeypatch):
     root = tmp_path / "tuple"
     raw = b"task-rule-bytes"
     row = _review_row(root, raw, receipt_id="rcpt-task")
+    recorded = dict(row["binding_tuple"])
+    recorded.pop("task", None)
+    recorded.pop("rule_version", None)
+    row["binding_tuple"] = recorded
     allow = _allow(tmp_path / "allow.json")
     _production(root, [row])
     monkeypatch.setenv("OCTO_TRUST_ALLOWLIST", str(allow))
@@ -113,22 +117,48 @@ def test_mf_n11_01_runner_carries_task_and_rule_version(tmp_path, monkeypatch):
             registry_root=root,
             fixture_digest=FIXTURE,
         )
-        assert "TUPLE_MISMATCH" in missing["output"]["evidence"][0]["note"]
-        _CONSUMED_RECEIPTS.pop(str(root.resolve()), None)
-        reached = run_n11(
-            {"candidate_sha": CANDIDATE, "scope": {"route": ROUTE, "task": TASK, "rule_version": RULE}},
+        padded = run_n11(
+            {"candidate_sha": CANDIDATE, "scope": {"route": ROUTE, "task": "not-signed", "rule_version": "not-signed"}},
             at=AT,
             registry_root=root,
             fixture_digest=FIXTURE,
         )
+        view = _open(root)
+        direct = consume_trusted_original(
+            {key: recorded[key] for key in ("route", "scope_digest", "base_sha", "candidate_sha", "fixture_digest")},
+            view,
+            set(),
+            allowlist_path=allow,
+        )
     finally:
         _unseal(root)
         monkeypatch.delenv("OCTO_TRUST_ALLOWLIST", raising=False)
-    note = reached["output"]["evidence"][0]["note"]
-    assert "TUPLE_MISMATCH" not in note
-    assert note == "EVIDENCE_UNVERIFIED GAP-03"
-    assert reached["status"] == "BLOCKED"
-    assert reached["output"]["verdict"] != "PASS"
+    for envelope in (missing, padded):
+        note = envelope["output"]["evidence"][0]["note"]
+        assert "TUPLE_MISMATCH" not in note
+        assert note == "EVIDENCE_UNVERIFIED GAP-03"
+        assert envelope["status"] == "BLOCKED"
+        assert envelope["output"]["verdict"] != "PASS"
+    assert getattr(direct, "reason_code", "") != "TUPLE_MISMATCH"
+    assert direct.reason_code == "EVIDENCE_UNVERIFIED"
+    assert direct.detail == "GAP-03"
+
+
+def test_mf_n11_01_extension_mismatch_still_rejects(tmp_path):
+    root = tmp_path / "mismatch"
+    raw = b"task-rule-mismatch"
+    row = _review_row(root, raw, receipt_id="rcpt-mismatch")
+    allow = _allow(tmp_path / "allow-mismatch.json")
+    _production(root, [row])
+    moved = dict(_binding())
+    moved["task"] = "other-task"
+    moved["rule_version"] = "other-rule"
+    try:
+        view = _open(root)
+        rejected = consume_trusted_original(moved, view, set(), allowlist_path=allow)
+    finally:
+        _unseal(root)
+    assert rejected.reason_code == "TUPLE_MISMATCH"
 
 
 def test_mf_n11_03_gap03_failure_can_retry_and_success_is_once(tmp_path):

@@ -174,9 +174,6 @@ def _phase_b_binding_matches(raw_binding: Any, runner_binding: Mapping[str, Any]
     runner = normalize_binding(runner_binding)
     if parsed is None or runner is None or parsed != runner:
         return False
-    for key in ("task", "rule_version"):
-        if runner_binding.get(key) and raw_binding.get(key) != runner_binding.get(key):
-            return False
     return True
 
 
@@ -454,7 +451,7 @@ def _judge_receipt(
 
 
 def _runner_binding(inputs: Mapping[str, Any], fixture_digest: str | None) -> dict[str, str] | None:
-    """Five-field tuple plus the recorded task and rule_version. Not a new envelope key."""
+    """Five-field tuple. Scope task/rule_version is not runner-signed authority."""
     scope = inputs.get("scope") if isinstance(inputs.get("scope"), dict) else {}
     route = scope.get("route")
     chosen = fixture_digest if fixture_digest is not None else os.environ.get(FIXTURE_DIGEST_ENV)
@@ -467,12 +464,7 @@ def _runner_binding(inputs: Mapping[str, Any], fixture_digest: str | None) -> di
     })
     if normalized is None:
         return None
-    raw = normalized.as_dict()
-    for key in ("task", "rule_version"):
-        value = scope.get(key)
-        if isinstance(value, str) and value.strip():
-            raw[key] = value.strip()
-    return raw
+    return normalized.as_dict()
 
 
 def run_n11(

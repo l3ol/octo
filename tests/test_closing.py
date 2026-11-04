@@ -138,6 +138,120 @@ def test_standard_run_closes_without_n6_n7_envelopes(tmp_path):
     journal.close()
 
 
+def test_run_standard_five_field_path_is_not_tuple_mismatch(tmp_path, monkeypatch):
+    """The Standard caller passes scope={route: internal_readonly} only."""
+    from octo.g3_review import product_scope_digest
+    from octo.nodes import run_n1
+    from octo.trusted_original import (
+        DEFAULT_EXPECTED_ISSUER,
+        ORIGINAL_REVIEWER_SESSION_ID,
+        fixture_set_digest,
+        runner_base_sha,
+    )
+
+    n1_in = PLAN["nodes"]["N1"]["input"]
+    intent = run_n1(n1_in, at=AT)["output"]
+    candidate = _git("rev-parse", "HEAD").lower()
+    fixture = "d" * 64
+    reg = tmp_path / "reg"
+    receipt_id = "rcpt-standard"
+    blob = reg / "bytes" / receipt_id
+    blob.parent.mkdir(parents=True)
+    blob.write_bytes(b"five-field-standard")
+    row = {
+        "registration_id": receipt_id,
+        "receipt_id": receipt_id,
+        "bytes_sha256": hashlib.sha256(b"five-field-standard").hexdigest(),
+        "raw_bytes_ref": f"bytes/{receipt_id}",
+        "source_evidence": {
+            "transfer_receipt_id": "transfer-1",
+            "issuer_agent_id": DEFAULT_EXPECTED_ISSUER,
+            "issuer_session_id": ORIGINAL_REVIEWER_SESSION_ID,
+            "relay_proof": "control-plane-shape",
+        },
+        "issuer_id": DEFAULT_EXPECTED_ISSUER,
+        "issued_at": AT,
+        "verdict": "PASS",
+        "binding_tuple": {
+            "route": "internal_readonly",
+            "scope_digest": product_scope_digest(),
+            "base_sha": runner_base_sha(),
+            "candidate_sha": candidate,
+            "fixture_digest": fixture,
+        },
+        "content_kind": "REVIEW_RECEIPT",
+        "test_only": False,
+        "excluded_fixture_hashes_proof": {
+            "fixture_set_digest": fixture_set_digest(set()),
+            "checked": True,
+        },
+    }
+    assert "task" not in row["binding_tuple"]
+    assert "rule_version" not in row["binding_tuple"]
+    reg.mkdir(parents=True, exist_ok=True)
+    (reg / "registry.json").write_text(json.dumps({"records": [row]}), encoding="utf-8")
+    for path in reg.rglob("*"):
+        if path.is_file():
+            path.chmod(0o444)
+    reg.chmod(0o555)
+    allow = tmp_path / "allow.json"
+    allow.write_text(json.dumps({
+        "issuer_allowlist": [DEFAULT_EXPECTED_ISSUER],
+        "source_allowlist": [ORIGINAL_REVIEWER_SESSION_ID],
+    }), encoding="utf-8")
+    monkeypatch.setenv("OCTO_TRUSTED_ORIGINAL_ROOT", str(reg.resolve()))
+    monkeypatch.setenv("OCTO_TRUST_ALLOWLIST", str(allow))
+    monkeypatch.setenv("OCTO_FIXTURE_DIGEST", fixture)
+    store = tmp_path / "store"
+    journal = Journal(store)
+    grants = GrantStore(store, fixture_key=KEY)
+    resource = store / "readable.txt"
+    resource.write_text("synthetic", encoding="utf-8")
+    request = AuthorizationRequest(
+        actor="actor-a",
+        action="internal_readonly",
+        resource=str(resource),
+        parameters={"op": "read"},
+        intent_id=intent["intent_id"],
+        idempotency_key="idem-five-field",
+        git_candidate_sha=candidate,
+        tree_sha=_git("rev-parse", "HEAD^{tree}").lower(),
+        grant_id="g-five-field",
+    )
+    grants.issue_test_fixture(
+        grant_id=request.grant_id,
+        subject=request.actor,
+        resource=str(store),
+        request_digest_hex=request.digest,
+        git_candidate=request.git_candidate_sha,
+        tree=request.tree_sha,
+        now=NOW,
+    )
+    try:
+        result = run_standard(
+            {"action_type": "internal_readonly", "grant_ref": request.grant_id},
+            {**_pack(n1_in, intent), "gateway": Gateway(journal, grants)},
+            at=AT,
+            request=request,
+            store=grants,
+            now=NOW,
+        )
+    finally:
+        reg.chmod(0o755)
+        for path in reg.rglob("*"):
+            if path.is_symlink():
+                continue
+            path.chmod(0o755 if path.is_dir() else 0o644)
+        journal.close()
+    n11 = next(item for item in result["envelopes"] if item["node_id"] == "N11")
+    note = n11["output"]["evidence"][0]["note"]
+    assert "TUPLE_MISMATCH" not in note
+    assert note == "EVIDENCE_UNVERIFIED GAP-03"
+    assert n11["status"] == "BLOCKED"
+    assert n11["output"]["verdict"] != "PASS"
+    assert n11["output"]["evidence"][0]["runtime_pass"] is False
+
+
 def store_contains(root: Path, path: Path) -> bool:
     return root.resolve() == path.resolve() or root.resolve() in path.resolve().parents
 

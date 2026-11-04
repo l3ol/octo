@@ -620,8 +620,16 @@ def _review_decision(
         return Rejected(gap)
     raw_binding = binding_tuple if isinstance(binding_tuple, Mapping) and not isinstance(binding_tuple, BindingTuple) else {}
     recorded = record.get("binding_tuple") if isinstance(record.get("binding_tuple"), Mapping) else {}
+    # task/rule_version are an optional extension. A missing value must not
+    # reject a compliant five-field tuple. Compare only when both sides carry one.
     for key in ("task", "rule_version"):
-        if recorded.get(key) != raw_binding.get(key) or not recorded.get(key):
+        recorded_value = recorded.get(key)
+        runner_value = raw_binding.get(key)
+        if not isinstance(recorded_value, str) or not recorded_value:
+            continue
+        if not isinstance(runner_value, str) or not runner_value:
+            continue
+        if recorded_value != runner_value:
             return Rejected("TUPLE_MISMATCH")
     receipt_id = record.get("receipt_id")
     if not isinstance(receipt_id, str) or not receipt_id:
