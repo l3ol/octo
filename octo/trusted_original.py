@@ -28,10 +28,12 @@ editing the trust predicate. ``runtime_pass`` stays false.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import errno
 import hashlib
 import json
 import os
 from pathlib import Path
+import secrets
 import threading
 from typing import Any, Mapping
 
@@ -264,7 +266,11 @@ def read_stored_json(registry_view: ReadOnlyRegistry, ref: Any) -> dict | None:
 
 
 def _consume_journal_dir(root: Path) -> Path:
-    """Durable consume records beside the read-only root, never inside it."""
+    """Durable consume records beside the read-only root, never inside it.
+
+    The Ops control-plane root stays read-only. This journal is not created
+    under that root.
+    """
     resolved = root.resolve()
     stamp = hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()
     return resolved.parent / ".octo-receipt-consume" / stamp
@@ -275,33 +281,93 @@ def _consume_journal_path(root: Path, receipt_id: str) -> Path:
     return _consume_journal_dir(root) / name
 
 
+def _journal_outside_root(root: Path, directory: Path) -> bool:
+    resolved = root.resolve()
+    place = directory.resolve()
+    return place != resolved and resolved not in place.parents
+
+
+def _consume_payload(receipt_id: str) -> bytes:
+    return receipt_id.encode("utf-8") + b"\n"
+
+
+def _write_all(fd: int, payload: bytes) -> None:
+    view = memoryview(payload)
+    while view:
+        written = os.write(fd, view)
+        if written <= 0:
+            raise OSError(errno.EIO, "short write")
+        view = view[written:]
+
+
 def receipt_is_consumed(root: Path, receipt_id: str) -> bool:
-    """True when a committed consume record is still on disk."""
+    """True only for a final marker whose bytes are ``receipt_id`` plus newline.
+
+    A temp name, an empty file, or a short write is not a consume.
+    """
     if not isinstance(receipt_id, str) or not receipt_id:
         return False
     path = _consume_journal_path(root, receipt_id)
-    return path.is_file() and not path.is_symlink()
+    if path.is_symlink() or not path.is_file():
+        return False
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return False
+    return data == _consume_payload(receipt_id)
 
 
 def _durable_claim(root: Path, receipt_id: str) -> bool:
-    """Create the consume record once. There is no delete path."""
+    """Claim once: temp file, full write, fsync, link, directory fsync.
+
+    ``os.link`` does not replace an existing final marker. The only unlink
+    is this call's own temp name. There is no discard of a final marker.
+    """
     directory = _consume_journal_dir(root)
+    if not _journal_outside_root(root, directory.parent.parent):
+        return False
     try:
         directory.mkdir(parents=True, exist_ok=True)
     except OSError:
         return False
-    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_CLOEXEC
-    try:
-        fd = os.open(_consume_journal_path(root, receipt_id), flags, 0o444)
-    except FileExistsError:
+    if not _journal_outside_root(root, directory):
         return False
+    final = _consume_journal_path(root, receipt_id)
+    tmp = directory / f".tmp-{os.getpid()}-{secrets.token_hex(8)}"
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_CLOEXEC
+    fd: int | None = None
+    try:
+        fd = os.open(tmp, flags, 0o644)
+        payload = _consume_payload(receipt_id)
+        _write_all(fd, payload)
+        os.fsync(fd)
+        os.close(fd)
+        fd = None
+        try:
+            os.link(tmp, final)
+        except FileExistsError:
+            return False
+        except OSError as exc:
+            if exc.errno == errno.EEXIST:
+                return False
+            return False
+        dir_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+        return True
     except OSError:
         return False
-    try:
-        os.write(fd, receipt_id.encode("utf-8") + b"\n")
     finally:
-        os.close(fd)
-    return True
+        if fd is not None:
+            os.close(fd)
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
 
 
 def commit_receipt_consume(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> bool:

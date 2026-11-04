@@ -17,6 +17,8 @@ from octo.trusted_original import (
     OPS_CONTROL_PLANE_SHA256,
     ReadOnlyRegistry,
     _CONSUMED_RECEIPTS,
+    _consume_journal_path,
+    _durable_claim,
     commit_receipt_consume,
     load_control_plane,
     ops_control_plane_status,
@@ -197,6 +199,54 @@ def test_durable_consume_commits_once_under_threads(tmp_path):
         thread.join()
     assert results.count(True) == 1
     assert receipt_is_consumed(root, "rcpt-race") is True
+    marker = _consume_journal_path(root, "rcpt-race")
+    assert marker.read_bytes() == b"rcpt-race\n"
+
+
+def test_failed_write_or_pre_link_crash_leaves_no_final_marker(tmp_path, monkeypatch):
+    root = tmp_path / "reg"
+    root.mkdir()
+    final = _consume_journal_path(root, "rcpt-retry")
+
+    def fail_write(fd, data):
+        raise OSError("simulated write failure")
+
+    monkeypatch.setattr(os, "write", fail_write)
+    assert _durable_claim(root, "rcpt-retry") is False
+    monkeypatch.undo()
+    assert not final.exists()
+    assert receipt_is_consumed(root, "rcpt-retry") is False
+
+    def crash_before_link(src, dst):
+        raise OSError("crash before link")
+
+    monkeypatch.setattr(os, "link", crash_before_link)
+    assert _durable_claim(root, "rcpt-retry") is False
+    monkeypatch.undo()
+    assert not final.exists()
+    assert list(final.parent.glob(".tmp-*")) == []
+    assert _durable_claim(root, "rcpt-retry") is True
+    assert final.read_bytes() == b"rcpt-retry\n"
+    assert commit_receipt_consume(_view(root), {"receipt_id": "rcpt-retry"}) is False
+
+
+def test_existing_final_marker_is_not_unlinked(tmp_path):
+    root = tmp_path / "reg"
+    root.mkdir()
+    final = _consume_journal_path(root, "rcpt-keep")
+    final.parent.mkdir(parents=True, exist_ok=True)
+    final.write_bytes(b"rcpt-keep\n")
+    assert _durable_claim(root, "rcpt-keep") is False
+    assert final.is_file()
+    assert final.read_bytes() == b"rcpt-keep\n"
+    empty = _consume_journal_path(root, "rcpt-empty")
+    empty.write_bytes(b"")
+    assert receipt_is_consumed(root, "rcpt-empty") is False
+    assert _durable_claim(root, "rcpt-empty") is False
+    assert empty.read_bytes() == b""
+    source = (ROOT / "octo" / "trusted_original.py").read_text(encoding="utf-8")
+    assert "release_consumed" not in source
+    assert "seen.discard" not in source
 
 
 def test_empty_n2_sources_are_not_ok_and_ops_pin_is_not_written(tmp_path):
