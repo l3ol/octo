@@ -3,17 +3,17 @@ import hashlib
 import json
 from pathlib import Path
 
+import threading
+
 from octo.closing import (
-    APPOINTMENT_DIGEST,
     OWNER_APPOINTMENT_THREAD,
-    PINNED_MESSAGE_ID,
-    PINNED_TURN_ID,
     TA_REVIEWER_ID,
     _from_consume,
     describe_read_thread,
     parse_authenticated_read_thread,
     run_n11,
 )
+from octo.trusted_original import CONTROL_PLANE_ENV, CANDIDATE_ROOT, load_control_plane
 from octo.g3_review import product_scope_digest
 from octo.trusted_original import (
     ORIGINAL_REVIEWER_SESSION_ID,
@@ -29,6 +29,14 @@ FIXTURE = "d" * 64
 ROUTE = "internal_readonly"
 TASK = "g2-s1"
 RULE = "t255"
+ROUND_TURN = "ca-round-turn"
+ROUND_MESSAGE = "ca-round-message"
+APPOINTMENT_ORIGINAL = hashlib.sha256(b"registrar-appointment-original-v1").hexdigest()
+# GPT Chief private-chat ids. Intent citation only. Not Reviewer pins.
+GPT_PRIVATE_TURN = "86b72901-5322-400a-be4c-063f80a6eb0b"
+GPT_PRIVATE_MESSAGE = "20c53a68-b7f0-4d98-ba11-966b5f24eadb"
+
+
 def _runner() -> dict:
     return {
         "route": ROUTE,
@@ -51,7 +59,7 @@ def _service(raw: bytes, **overrides) -> dict:
     text = raw.decode("utf-8")
     item = {
         "type": overrides.pop("message_type", "agentMessage"),
-        "id": overrides.pop("message_id", PINNED_MESSAGE_ID),
+        "id": overrides.pop("message_id", ROUND_MESSAGE),
         "text": overrides.pop("text", text),
     }
     if overrides.pop("omit_text", False):
@@ -60,7 +68,7 @@ def _service(raw: bytes, **overrides) -> dict:
         "schemaVersion": 1,
         "thread": {"id": overrides.pop("thread_id", OWNER_APPOINTMENT_THREAD)},
         "turns": [{
-            "id": overrides.pop("turn_id", PINNED_TURN_ID),
+            "id": overrides.pop("turn_id", ROUND_TURN),
             "status": overrides.pop("status", "completed"),
             "items": [item],
         }],
@@ -141,7 +149,7 @@ def _install(
             "message_id": item.get("id") if isinstance(item, dict) else None,
             "role": "agentMessage",
             "turn_status": turn.get("status", stored.get("turn", {}).get("status") if isinstance(stored.get("turn"), dict) else None),
-            "appointment_digest": APPOINTMENT_DIGEST,
+            "appointment_digest": APPOINTMENT_ORIGINAL,
             "allowlist_sha256": hashlib.sha256(_allow_bytes()).hexdigest(),
             "base_sha": runner["base_sha"],
             "candidate_sha": runner["candidate_sha"],
@@ -191,6 +199,24 @@ def _allow(path: Path) -> Path:
     return path
 
 
+def _control_plane() -> dict:
+    runner = _runner()
+    return {
+        "kind": "REGISTRAR_RELAY",
+        "not_issuer": True,
+        "current_reviewer_conclusion": True,
+        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "turn_id": ROUND_TURN,
+        "message_id": ROUND_MESSAGE,
+        "appointment_original_digest": APPOINTMENT_ORIGINAL,
+        "base_sha": runner["base_sha"],
+        "candidate_sha": runner["candidate_sha"],
+        "scope_digest": runner["scope_digest"],
+        "fixture_digest": runner["fixture_digest"],
+        "allowlist_sha256": hashlib.sha256(_allow_bytes()).hexdigest(),
+    }
+
+
 def _run(
     tmp_path: Path,
     monkeypatch,
@@ -202,6 +228,9 @@ def _run(
     service: dict | None = None,
     clear_seen: bool = True,
     transfer_overrides: dict | None = None,
+    plane_overrides: dict | None = None,
+    control: bool = True,
+    control_path: Path | None = None,
 ):
     root = tmp_path / "reg"
     _install(
@@ -215,6 +244,16 @@ def _run(
     )
     allow = _allow(tmp_path / "allow.json")
     monkeypatch.setenv("OCTO_TRUST_ALLOWLIST", str(allow))
+    if control:
+        if control_path is None:
+            plane = dict(_control_plane())
+            if plane_overrides:
+                plane.update(plane_overrides)
+            control_path = tmp_path / "control-plane.json"
+            control_path.write_text(json.dumps(plane), encoding="utf-8")
+        monkeypatch.setenv(CONTROL_PLANE_ENV, str(control_path))
+    else:
+        monkeypatch.delenv(CONTROL_PLANE_ENV, raising=False)
     if clear_seen:
         _CONSUMED_RECEIPTS.pop(str(root.resolve()), None)
     try:
@@ -227,6 +266,7 @@ def _run(
     finally:
         _unseal(root)
         monkeypatch.delenv("OCTO_TRUST_ALLOWLIST", raising=False)
+        monkeypatch.delenv(CONTROL_PLANE_ENV, raising=False)
 
 
 def _evidence(envelope: dict) -> dict:
@@ -445,7 +485,11 @@ def test_rf_cx4_real_shape_is_format_compat_and_historical_business_stays_blocke
     historical = json.loads(service_bytes.decode("utf-8"))
     parsed = describe_read_thread(historical)
     assert parsed is not None
-    assert parse_authenticated_read_thread(historical) is None
+    assert parse_authenticated_read_thread(historical, {
+        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "turn_id": ROUND_TURN,
+        "message_id": ROUND_MESSAGE,
+    }) is None
     assert parsed["thread_id"] == OWNER_APPOINTMENT_THREAD
     assert parsed["turn_id"] == "3c9945f6-aece-4a2e-87a0-ed2a11722424"
     assert parsed["message_id"] == "feee2cda-befb-4183-9e48-9da3fc53130b"
@@ -586,3 +630,222 @@ def test_adn13_historical_source_bytes_do_not_become_the_current_verdict(tmp_pat
     assert envelope["status"] == "BLOCKED"
     assert envelope["output"]["verdict"] != "PASS"
     assert _evidence(envelope)["runtime_pass"] is False
+
+
+def _candidate_sources() -> str:
+    return "\n".join(path.read_text(encoding="utf-8") for path in (CANDIDATE_ROOT / "octo").glob("*.py"))
+
+
+def test_ca01_gpt_private_ids_are_not_reviewer_pins(tmp_path, monkeypatch):
+    source = _candidate_sources()
+    assert GPT_PRIVATE_TURN not in source
+    assert GPT_PRIVATE_MESSAGE not in source
+    raw = json.dumps(_original("PASS")).encode()
+    service = _service(raw, turn_id=GPT_PRIVATE_TURN, message_id=GPT_PRIVATE_MESSAGE)
+    assert _blocked_note(tmp_path, monkeypatch, raw=raw, receipt_id="ca01", service=service) == "SOURCE_UNPROVEN"
+
+
+def test_ca02_historical_raw_does_not_require_cross_chat_splice(tmp_path, monkeypatch):
+    fixture = CANDIDATE_ROOT / "tests" / "fixtures" / "n11-read-thread"
+    historical = json.loads((fixture / "service-response.exact.nolf").read_text(encoding="utf-8"))
+    described = describe_read_thread(historical)
+    assert described is not None
+    assert described["turn_id"] == "3c9945f6-aece-4a2e-87a0-ed2a11722424"
+    assert described["message_id"] == "feee2cda-befb-4183-9e48-9da3fc53130b"
+    assert parse_authenticated_read_thread(historical, {
+        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "turn_id": GPT_PRIVATE_TURN,
+        "message_id": GPT_PRIVATE_MESSAGE,
+    }) is None
+    raw = json.dumps(_original("PASS")).encode()
+    assert _blocked_note(tmp_path, monkeypatch, raw=raw, receipt_id="ca02", service=historical) == "SOURCE_UNPROVEN"
+
+
+def test_ca03_thread_id_hash_is_not_an_appointment_original(tmp_path, monkeypatch):
+    source = (CANDIDATE_ROOT / "octo" / "closing.py").read_text(encoding="utf-8")
+    trusted = (CANDIDATE_ROOT / "octo" / "trusted_original.py").read_text(encoding="utf-8")
+    assert "APPOINTMENT_DIGEST" not in source
+    assert "APPOINTMENT_DIGEST" not in trusted
+    fake = hashlib.sha256(OWNER_APPOINTMENT_THREAD.encode("utf-8")).hexdigest()
+    assert fake != APPOINTMENT_ORIGINAL
+    raw = json.dumps(_original("PASS")).encode()
+    note = _blocked_note(
+        tmp_path,
+        monkeypatch,
+        raw=raw,
+        receipt_id="ca03",
+        plane_overrides={"appointment_original_digest": fake},
+        transfer_overrides={"appointment_digest": fake},
+    )
+    assert note == "SOURCE_UNPROVEN"
+    assert load_control_plane(tmp_path / "control-plane.json") is None
+
+
+def test_ca04_self_selected_pins_are_not_the_control_plane(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    assert _blocked_note(tmp_path / "missing", monkeypatch, raw=raw, receipt_id="ca04-missing", control=False) == "SOURCE_UNPROVEN"
+    inside = CANDIDATE_ROOT / ".ca04-control-plane.json"
+    inside.write_text(json.dumps(_control_plane()), encoding="utf-8")
+    try:
+        note = _blocked_note(
+            tmp_path / "inside",
+            monkeypatch,
+            raw=raw,
+            receipt_id="ca04-inside",
+            control_path=inside,
+        )
+    finally:
+        inside.unlink(missing_ok=True)
+    assert note == "SOURCE_UNPROVEN"
+
+
+def test_ca05_no_current_reviewer_conclusion_stays_blocked(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    service = _service(raw, turn_id=GPT_PRIVATE_TURN, message_id=GPT_PRIVATE_MESSAGE)
+    note = _blocked_note(
+        tmp_path,
+        monkeypatch,
+        raw=raw,
+        receipt_id="ca05",
+        service=service,
+        plane_overrides={"current_reviewer_conclusion": False, "turn_id": GPT_PRIVATE_TURN, "message_id": GPT_PRIVATE_MESSAGE},
+    )
+    assert note == "SOURCE_UNPROVEN"
+
+
+def test_ca06_synthetic_fixture_does_not_upgrade(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    marks = (
+        {"fixture_class": "TEST_ONLY"},
+        {"fixture_class": "TEST_FIXTURE"},
+        {"synthetic": True},
+    )
+    for index, mark in enumerate(marks):
+        note = _blocked_note(
+            tmp_path / str(index),
+            monkeypatch,
+            raw=raw,
+            receipt_id=f"ca06-{index}",
+            plane_overrides=mark,
+        )
+        assert note == "SOURCE_UNPROVEN"
+
+
+def test_ca07_concurrent_interleaving_consumes_once(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    root = tmp_path / "reg"
+    _install(root, raw, receipt_id="ca07")
+    monkeypatch.setenv("OCTO_TRUST_ALLOWLIST", str(_allow(tmp_path / "allow.json")))
+    plane_path = tmp_path / "control-plane.json"
+    plane_path.write_text(json.dumps(_control_plane()), encoding="utf-8")
+    monkeypatch.setenv(CONTROL_PLANE_ENV, str(plane_path))
+    resolved = str(root.resolve())
+    _CONSUMED_RECEIPTS.pop(resolved, None)
+    barrier = threading.Barrier(8)
+    results: list[tuple[str, str, str]] = []
+    errors: list[BaseException] = []
+    guard = threading.Lock()
+
+    def worker() -> None:
+        try:
+            barrier.wait(timeout=5)
+            envelope = run_n11(
+                {"candidate_sha": CANDIDATE, "scope": {"route": ROUTE, "task": TASK, "rule_version": RULE}},
+                at=AT,
+                registry_root=root,
+                fixture_digest=FIXTURE,
+            )
+            row = (
+                envelope["status"],
+                envelope["output"]["verdict"],
+                envelope["output"]["evidence"][0]["note"],
+            )
+            with guard:
+                results.append(row)
+        except BaseException as exc:
+            with guard:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    try:
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+    finally:
+        _unseal(root)
+        monkeypatch.delenv("OCTO_TRUST_ALLOWLIST", raising=False)
+        monkeypatch.delenv(CONTROL_PLANE_ENV, raising=False)
+    assert errors == []
+    assert len(results) == 8
+    assert all(not thread.is_alive() for thread in threads)
+    wins = [row for row in results if row[0] == "OK" and row[1] == "PASS"]
+    assert len(wins) == 1
+    assert wins[0][2] == "PHASE_B"
+    for status, verdict, note in results:
+        if status == "OK" and verdict == "PASS":
+            continue
+        assert status == "BLOCKED"
+        assert verdict != "PASS"
+        assert "EVIDENCE_UNVERIFIED" in note
+    assert _CONSUMED_RECEIPTS.get(resolved) == {"ca07"}
+
+
+def test_ca08_failure_does_not_consume_and_replay_is_rejected(tmp_path, monkeypatch):
+    source = _candidate_sources()
+    assert "release_consumed_receipt" not in source
+    assert "seen.discard" not in source
+    assert "mark_receipt_consumed" not in source
+    raw = json.dumps(_original("PASS")).encode()
+    first = _run(tmp_path, monkeypatch, raw, receipt_id="ca08", proof=False)
+    assert first["status"] == "BLOCKED"
+    resolved = str((tmp_path / "reg").resolve())
+    assert "ca08" not in _CONSUMED_RECEIPTS.get(resolved, set())
+    second = _run(tmp_path, monkeypatch, raw, receipt_id="ca08", proof=True, clear_seen=False)
+    assert second["status"] == "OK" and second["output"]["verdict"] == "PASS"
+    assert _evidence(second)["runtime_pass"] is False
+    third = _run(tmp_path, monkeypatch, raw, receipt_id="ca08", proof=True, clear_seen=False)
+    assert third["status"] == "BLOCKED"
+    assert "EVIDENCE_UNVERIFIED" in third["output"]["evidence"][0]["note"]
+
+
+def test_ca09_historical_tips_stay_unrewritten():
+    import subprocess
+    parent = "896e3e5073dbb83def6950c8096356eca979188f"
+    ancestor = "019681fc92173d28e2e140da2c79d3f7764a5321"
+    trees = {
+        parent: "af3c7a13226126f0c579d1e2e15e8ade600618bb",
+        ancestor: "ebf8351ef11bbcc359a27d9ca3281708790af8eb",
+    }
+    for sha, tree in trees.items():
+        got = subprocess.check_output(
+            ["git", "rev-parse", f"{sha}^{{tree}}"],
+            cwd=CANDIDATE_ROOT,
+            text=True,
+        ).strip()
+        assert got == tree
+        subprocess.check_call(["git", "merge-base", "--is-ancestor", sha, "HEAD"], cwd=CANDIDATE_ROOT)
+    source = _candidate_sources()
+    assert GPT_PRIVATE_TURN not in source
+    assert GPT_PRIVATE_MESSAGE not in source
+
+
+def test_registered_round_rereads_control_plane(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    plane = _control_plane()
+    plane_path = tmp_path / "control-plane.json"
+    plane_path.write_text(json.dumps(plane), encoding="utf-8")
+    envelope = _run(tmp_path / "round", monkeypatch, raw, receipt_id="ca-round", control_path=plane_path)
+    assert envelope["status"] == "OK"
+    assert envelope["output"]["verdict"] == "PASS"
+    assert _evidence(envelope)["runtime_pass"] is False
+    reread = json.loads(plane_path.read_bytes().decode("utf-8"))
+    loaded = load_control_plane(plane_path)
+    assert loaded is not None
+    assert loaded["appointment_original_digest"] == reread["appointment_original_digest"] == APPOINTMENT_ORIGINAL
+    assert loaded["appointment_original_digest"] != hashlib.sha256(OWNER_APPOINTMENT_THREAD.encode("utf-8")).hexdigest()
+    assert loaded["thread_id"] == reread["thread_id"] == OWNER_APPOINTMENT_THREAD
+    assert loaded["turn_id"] == ROUND_TURN
+    assert loaded["message_id"] == ROUND_MESSAGE
+    for key in ("base_sha", "candidate_sha", "scope_digest", "fixture_digest", "allowlist_sha256"):
+        assert loaded[key] == reread[key] == plane[key]

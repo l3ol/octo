@@ -32,6 +32,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import threading
 from typing import Any, Mapping
 
 from octo.g3_review import product_scope_digest
@@ -48,6 +49,8 @@ ORIGINAL_REVIEWER_SESSION_ID = "6ae6216e-bbec-83e8-87dc-c3edd9027bcc"
 ORIGINAL_SESSION_ID = ORIGINAL_REVIEWER_SESSION_ID
 REGISTRY_ENV = "OCTO_TRUSTED_ORIGINAL_ROOT"
 ALLOWLIST_ENV = "OCTO_TRUST_ALLOWLIST"
+CONTROL_PLANE_ENV = "OCTO_CONTROL_PLANE"
+_CONSUME_LOCK = threading.Lock()
 FIXTURE_DIGEST_ENV = "OCTO_FIXTURE_DIGEST"
 # Expected config value for the external issuer allowlist. Not an acceptance fallback.
 DEFAULT_EXPECTED_ISSUER = TA_REVIEWER_ID
@@ -226,12 +229,18 @@ def read_stored_json(registry_view: ReadOnlyRegistry, ref: Any) -> dict | None:
     return document if isinstance(document, dict) else None
 
 
-def mark_receipt_consumed(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> None:
-    """Record one receipt after source proof and verdict mapping both succeed."""
+def commit_receipt_consume(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> bool:
+    """Atomically claim one receipt. False means another path already committed it."""
     receipt_id = record.get("receipt_id")
     if not isinstance(receipt_id, str) or not receipt_id:
-        return
-    _CONSUMED_RECEIPTS.setdefault(str(registry_view.root), set()).add(receipt_id)
+        return False
+    key = str(registry_view.root)
+    with _CONSUME_LOCK:
+        seen = _CONSUMED_RECEIPTS.setdefault(key, set())
+        if receipt_id in seen:
+            return False
+        seen.add(receipt_id)
+        return True
 
 
 def load_trusted_raw(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> bytes | None:
@@ -349,6 +358,54 @@ def _read_external_bytes(path: Path) -> bytes | None:
         return b"".join(chunks)
     finally:
         os.close(fd)
+
+
+def load_control_plane(path: Path | None = None) -> dict[str, str] | None:
+    """Read-only registrar pins. A sha256 of the thread id is not an appointment original."""
+    if path is None:
+        env = os.environ.get(CONTROL_PLANE_ENV)
+        path = Path(env) if env else None
+    if path is None:
+        return None
+    raw = _read_external_bytes(path)
+    if raw is None:
+        return None
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(document, dict):
+        return None
+    if document.get("kind") != "REGISTRAR_RELAY" or document.get("not_issuer") is not True:
+        return None
+    if document.get("current_reviewer_conclusion") is not True:
+        return None
+    # A synthetic registration cannot take the production pin path.
+    # TEST_ONLY / TEST_FIXTURE stay blocked even when the mark is present.
+    if document.get("synthetic") is True or document.get("fixture_class") in {"TEST_ONLY", "TEST_FIXTURE"}:
+        return None
+    thread_id = document.get("thread_id")
+    appointment = document.get("appointment_original_digest")
+    if not isinstance(thread_id, str) or not isinstance(appointment, str):
+        return None
+    if appointment == hashlib.sha256(thread_id.encode("utf-8")).hexdigest():
+        return None
+    required = (
+        "turn_id",
+        "message_id",
+        "base_sha",
+        "candidate_sha",
+        "scope_digest",
+        "fixture_digest",
+        "allowlist_sha256",
+    )
+    pins: dict[str, str] = {"thread_id": thread_id, "appointment_original_digest": appointment}
+    for key in required:
+        value = document.get(key)
+        if not isinstance(value, str) or not value:
+            return None
+        pins[key] = value
+    return pins
 
 
 def load_allowlists(path: Path | None = None) -> tuple[dict[str, list[str]], str] | None:

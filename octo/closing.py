@@ -33,11 +33,12 @@ from octo.trusted_original import (
     ReadOnlyRegistry,
     Rejected,
     consume_trusted_original,
+    load_control_plane,
     load_trusted_raw,
     migration_claimed,
     normalize_binding,
     open_registry,
-    mark_receipt_consumed,
+    commit_receipt_consume,
     read_stored_bytes,
     read_stored_json,
     runner_base_sha,
@@ -150,9 +151,6 @@ def _from_consume(result: ConsumeResult, scope: Any) -> tuple[dict, str]:
 _PHASE_B_MARKS = frozenset({"verdict", "binding_tuple", "source_authenticity"})
 _PHASE_B_VERDICTS = frozenset({"PASS", "REVISE", "BLOCKED", "FAIL"})
 OWNER_APPOINTMENT_THREAD = "6ae7886b-23c8-83e8-a136-f1b52b33d01f"
-PINNED_TURN_ID = "86b72901-5322-400a-be4c-063f80a6eb0b"
-PINNED_MESSAGE_ID = "20c53a68-b7f0-4d98-ba11-966b5f24eadb"
-APPOINTMENT_DIGEST = hashlib.sha256(OWNER_APPOINTMENT_THREAD.encode("utf-8")).hexdigest()
 _FAKE_SERVER_IDS = frozenset({"server_call_id", "server_native_id", "tool_call_id"})
 
 
@@ -216,28 +214,32 @@ def describe_read_thread(service: Mapping[str, Any]) -> dict[str, str] | None:
     return None
 
 
-def parse_authenticated_read_thread(service: Mapping[str, Any]) -> dict[str, str] | None:
-    """The pinned completed turn and agentMessage. User, preview, and content-reference items are ignored."""
+def parse_authenticated_read_thread(service: Mapping[str, Any], pin: Mapping[str, str]) -> dict[str, str] | None:
+    """Select the control-plane turn and message. User, preview, and content-reference items are ignored."""
     thread = service.get("thread")
     turns = service.get("turns")
-    if not isinstance(thread, dict) or thread.get("id") != OWNER_APPOINTMENT_THREAD or not isinstance(turns, list):
+    turn_id = pin.get("turn_id")
+    message_id = pin.get("message_id")
+    if not isinstance(thread, dict) or thread.get("id") != pin.get("thread_id") or not isinstance(turns, list):
+        return None
+    if not isinstance(turn_id, str) or not isinstance(message_id, str):
         return None
     for turn in turns:
-        if not isinstance(turn, dict) or turn.get("id") != PINNED_TURN_ID or turn.get("status") != "completed":
+        if not isinstance(turn, dict) or turn.get("id") != turn_id or turn.get("status") != "completed":
             continue
         items = turn.get("items")
         if not isinstance(items, list):
             return None
         for item in items:
-            if not isinstance(item, dict) or item.get("type") != "agentMessage" or item.get("id") != PINNED_MESSAGE_ID:
+            if not isinstance(item, dict) or item.get("type") != "agentMessage" or item.get("id") != message_id:
                 continue
             text = item.get("text")
             if not isinstance(text, str) or text == "":
                 return None
             return {
-                "thread_id": OWNER_APPOINTMENT_THREAD,
-                "turn_id": PINNED_TURN_ID,
-                "message_id": PINNED_MESSAGE_ID,
+                "thread_id": pin["thread_id"],
+                "turn_id": turn_id,
+                "message_id": message_id,
                 "role": "agentMessage",
                 "text": text,
             }
@@ -265,6 +267,7 @@ def _collector_matches(
     parsed: Mapping[str, str],
     allowlist_sha: str | None,
     runner_binding: Mapping[str, Any] | None,
+    pin: Mapping[str, str],
 ) -> bool:
     if not isinstance(transfer.get("collector_receipt_id"), str) or not transfer["collector_receipt_id"]:
         return False
@@ -272,12 +275,12 @@ def _collector_matches(
         return False
     if allowlist_sha is None or transfer.get("allowlist_sha256") != allowlist_sha:
         return False
-    if transfer.get("appointment_digest") != APPOINTMENT_DIGEST:
+    if transfer.get("appointment_digest") != pin.get("appointment_original_digest"):
         return False
     if not isinstance(runner_binding, Mapping):
         return False
     for key in ("base_sha", "candidate_sha", "scope_digest", "fixture_digest"):
-        if transfer.get(key) != runner_binding.get(key):
+        if transfer.get(key) != runner_binding.get(key) or transfer.get(key) != pin.get(key):
             return False
     return (
         transfer.get("raw_sha256") == actual
@@ -317,7 +320,10 @@ def _phase_b_source_authentic(
         return False
     if not isinstance(service, dict):
         return False
-    parsed = parse_authenticated_read_thread(service)
+    pin = load_control_plane()
+    if pin is None or pin.get("thread_id") != OWNER_APPOINTMENT_THREAD:
+        return False
+    parsed = parse_authenticated_read_thread(service, pin)
     if parsed is None or not _message_matches_original(parsed["text"], raw):
         return False
     claimed = service.get("message_sha256")
@@ -338,6 +344,7 @@ def _phase_b_source_authentic(
         parsed=parsed,
         allowlist_sha=_allowlist_digest(),
         runner_binding=runner_binding,
+        pin=pin,
     )
 
 
@@ -430,7 +437,8 @@ def _judge_receipt(
             )
             if gated is not None:
                 if gated[0]["evidence"][0].get("note") == "PHASE_B":
-                    mark_receipt_consumed(registry_view, result.record)
+                    if not commit_receipt_consume(registry_view, result.record):
+                        return _blocked(scope, "EVIDENCE_UNVERIFIED")
                 return gated
     return _from_consume(result, scope)
 
