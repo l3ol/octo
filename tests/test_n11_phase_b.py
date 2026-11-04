@@ -682,6 +682,91 @@ def test_ca03_thread_id_hash_is_not_an_appointment_original(tmp_path, monkeypatc
     assert load_control_plane(tmp_path / "control-plane.json") is None
 
 
+def test_ca03_appointment_digest_must_be_sha256_hex(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    runner = _runner()
+    parsed = {
+        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "turn_id": ROUND_TURN,
+        "message_id": ROUND_MESSAGE,
+    }
+    transfer = {
+        "collector_receipt_id": "transfer-1",
+        "collected_at": AT,
+        "allowlist_sha256": ALLOWLIST_RUNTIME_B,
+        "appointment_digest": APPOINTMENT_ORIGINAL,
+        "base_sha": runner["base_sha"],
+        "candidate_sha": runner["candidate_sha"],
+        "scope_digest": runner["scope_digest"],
+        "fixture_digest": runner["fixture_digest"],
+        "raw_sha256": "11" * 32,
+        "service_response_sha256": "22" * 32,
+        "message_sha256": "33" * 32,
+        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "turn_id": ROUND_TURN,
+        "message_id": ROUND_MESSAGE,
+        "role": "agentMessage",
+        "turn_status": "completed",
+    }
+    matched = dict(
+        actual="11" * 32,
+        service_sha="22" * 32,
+        text_sha="33" * 32,
+        parsed=parsed,
+        allowlist_sha=ALLOWLIST_RUNTIME_B,
+        runner_binding=runner,
+        pin=_control_plane(),
+    )
+    assert _collector_matches(transfer, **matched) is True
+    bad = {
+        "empty": "",
+        "nonsha": "x",
+        "short": "a" * 63,
+        "nonhex": "g" * 64,
+        "null": None,
+    }
+    for name, value in bad.items():
+        bad_transfer = dict(transfer, appointment_digest=value)
+        assert _collector_matches(bad_transfer, **matched) is False
+        bad_pin = dict(_control_plane(), appointment_original_digest=value)
+        assert _collector_matches(bad_transfer, **dict(matched, pin=bad_pin)) is False
+        note = _blocked_note(
+            tmp_path / name,
+            monkeypatch,
+            raw=raw,
+            receipt_id=f"ca03-{name}",
+            plane_overrides={"appointment_original_digest": value},
+            transfer_overrides={"appointment_digest": value},
+        )
+        assert note == "SOURCE_UNPROVEN"
+        assert load_control_plane(tmp_path / name / "control-plane.json") is None
+        transfer_only = _blocked_note(
+            tmp_path / f"xfer-{name}",
+            monkeypatch,
+            raw=raw,
+            receipt_id=f"ca03-xfer-{name}",
+            transfer_overrides={"appointment_digest": value},
+        )
+        assert transfer_only == "SOURCE_UNPROVEN"
+        loaded = load_control_plane(tmp_path / f"xfer-{name}" / "control-plane.json")
+        assert loaded is not None
+        assert loaded["appointment_original_digest"] == APPOINTMENT_ORIGINAL
+    missing_plane = _control_plane()
+    missing_plane.pop("appointment_original_digest")
+    missing_path = tmp_path / "missing" / "control-plane.json"
+    missing_path.parent.mkdir()
+    missing_path.write_text(json.dumps(missing_plane), encoding="utf-8")
+    missing_note = _blocked_note(
+        tmp_path / "missing",
+        monkeypatch,
+        raw=raw,
+        receipt_id="ca03-missing",
+        control_path=missing_path,
+    )
+    assert missing_note == "SOURCE_UNPROVEN"
+    assert load_control_plane(missing_path) is None
+
+
 def test_ca04_self_selected_pins_are_not_the_control_plane(tmp_path, monkeypatch):
     raw = json.dumps(_original("PASS")).encode()
     assert _blocked_note(tmp_path / "missing", monkeypatch, raw=raw, receipt_id="ca04-missing", control=False) == "SOURCE_UNPROVEN"

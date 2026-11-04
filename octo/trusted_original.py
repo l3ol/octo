@@ -121,6 +121,11 @@ def _hex_field(value: Any, length: int) -> str | None:
     return text
 
 
+def _is_sha256_hex(value: Any) -> bool:
+    """Exactly 64 lowercase hex characters. No strip and no case fold."""
+    return isinstance(value, str) and len(value) == 64 and all(char in _HEX for char in value)
+
+
 def normalize_binding(raw: Mapping[str, Any] | BindingTuple | None) -> BindingTuple | None:
     """Five fields, exact after normalization. A short SHA or a missing field is not a tuple."""
     if isinstance(raw, BindingTuple):
@@ -386,7 +391,7 @@ def load_control_plane(path: Path | None = None) -> dict[str, str] | None:
         return None
     thread_id = document.get("thread_id")
     appointment = document.get("appointment_original_digest")
-    if not isinstance(thread_id, str) or not isinstance(appointment, str):
+    if not isinstance(thread_id, str) or not _is_sha256_hex(appointment):
         return None
     if appointment == hashlib.sha256(thread_id.encode("utf-8")).hexdigest():
         return None

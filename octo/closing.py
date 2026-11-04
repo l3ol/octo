@@ -33,6 +33,7 @@ from octo.trusted_original import (
     ReadOnlyRegistry,
     Rejected,
     consume_trusted_original,
+    _is_sha256_hex,
     load_control_plane,
     load_trusted_raw,
     migration_claimed,
@@ -280,7 +281,11 @@ def _collector_matches(
         or transfer.get("allowlist_sha256") != allowlist_sha
     ):
         return False
-    if transfer.get("appointment_digest") != pin.get("appointment_original_digest"):
+    appointment = pin.get("appointment_original_digest")
+    thread_id = pin.get("thread_id")
+    if not _is_sha256_hex(appointment) or transfer.get("appointment_digest") != appointment:
+        return False
+    if isinstance(thread_id, str) and appointment == hashlib.sha256(thread_id.encode("utf-8")).hexdigest():
         return False
     if not isinstance(runner_binding, Mapping):
         return False
