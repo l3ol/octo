@@ -10,7 +10,7 @@ import sys
 import threading
 from pathlib import Path
 
-from octo.closing import OWNER_APPOINTMENT_THREAD, phase_b_from_raw, phase_b_json_bytes
+from octo.closing import phase_b_from_raw, phase_b_json_bytes
 from octo.nodes import run_n2
 from octo.trusted_original import (
     OPS_CONTROL_PLANE_ROOT,
@@ -24,14 +24,18 @@ from octo.trusted_original import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-FENCED = ROOT / "tests" / "fixtures" / "n11-fenced" / "reviewer-own-fenced-blocked.txt"
-ESCAPED = ROOT / "tests" / "fixtures" / "n11-fenced" / "reviewer-real-blocked-escaped.txt"
-FENCED_SHA = "97f9fd4bb5812ca39aff0386aa025e8d9260fd06c0ff6b82831a90fe6097af12"
-BODY_SHA = "611b1e99793e2f1b660532156335e04db8ea24b842db1d930bcfd87f9f7f223a"
-ESCAPED_SHA = "3f74a3ecbb4421bc9e62d2ce6c20546a86fa7ed5f30613ddab51de8e7a03322c"
-REVIEWED_CANDIDATE = "de6649b42f8171c9e9eb28fa4df2b3f1c9b57621"
-HISTORICAL_TIP = "81697a28318f24e58875e53dd8870579c3b096ee"
-APPOINTMENT_MESSAGE = "768be9438a45b3174ca2994962da3a2267945bc30915c6db23ef5a2cde6eb317"
+FENCED = ROOT / "tests" / "fixtures" / "n11-fenced" / "test-only-fenced-blocked.txt"
+ESCAPED = ROOT / "tests" / "fixtures" / "n11-fenced" / "test-only-escaped-blocked.txt"
+FENCED_SHA = "9f107fcc73a9cd4a092a6c3797cd19a34781386fc0df71a3c43d14b2495d8b77"
+FENCED_LEN = 234
+ESCAPED_SHA = "6b1f9c371f593aeb0c7b813ef91c6f8a2b87ba69b6d0554e9b71631b6caee75c"
+ESCAPED_LEN = 45
+FAKE_CANDIDATE = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+# Published originals must not be the bytes under test.
+LEAKED_FENCED_SHA = "97f9fd4bb5812ca39aff0386aa025e8d9260fd06c0ff6b82831a90fe6097af12"
+LEAKED_ESCAPED_SHA = "3f74a3ecbb4421bc9e62d2ce6c20546a86fa7ed5f30613ddab51de8e7a03322c"
+SYNTHETIC_APPOINTMENT = "ab" * 32
+SYNTHETIC_THREAD = "test-only-thread"
 AT = "2026-11-04T00:00:00+00:00"
 
 
@@ -49,18 +53,20 @@ def _phase(raw: bytes, root: Path):
     )
 
 
-def test_fenced_authority_parses_and_stays_blocked():
+def test_fenced_test_fixture_parses_and_stays_blocked():
     raw = FENCED.read_bytes()
-    assert hashlib.sha256(raw).hexdigest() == FENCED_SHA
-    assert len(raw) == 19520
+    digest = hashlib.sha256(raw).hexdigest()
+    assert digest == FENCED_SHA
+    assert len(raw) == FENCED_LEN
+    assert digest != LEAKED_FENCED_SHA
     body = phase_b_json_bytes(raw)
-    assert hashlib.sha256(body).hexdigest() == BODY_SHA
-    assert hashlib.sha256(body).hexdigest() != FENCED_SHA
+    assert hashlib.sha256(body).hexdigest() != digest
     document = json.loads(body.decode("utf-8"))
+    assert document["kind"] == "TEST_FIXTURE"
+    assert document["test_only"] is True
     assert document["verdict"] == "BLOCKED"
     assert document["runtime_pass"] is False
-    assert document["binding_tuple"]["candidate_sha"] == REVIEWED_CANDIDATE
-    assert document["binding_tuple"]["candidate_sha"] != HISTORICAL_TIP
+    assert document["binding_tuple"]["candidate_sha"] == FAKE_CANDIDATE
     gated = _phase(raw, Path("/tmp"))
     assert gated is not None
     assert gated[1] == "BLOCKED"
@@ -70,18 +76,20 @@ def test_fenced_authority_parses_and_stays_blocked():
     assert hashlib.sha256(raw).hexdigest() == FENCED_SHA
 
 
-def test_escaped_export_is_format_blocked_without_unescape():
+def test_escaped_test_fixture_is_format_blocked_without_unescape():
     raw = ESCAPED.read_bytes()
-    assert hashlib.sha256(raw).hexdigest() == ESCAPED_SHA
+    digest = hashlib.sha256(raw).hexdigest()
+    assert digest == ESCAPED_SHA
+    assert len(raw) == ESCAPED_LEN
+    assert digest != LEAKED_ESCAPED_SHA
     assert b"```" not in raw
     assert phase_b_json_bytes(raw) == raw
     try:
         json.loads(raw.decode("utf-8"))
-    except json.JSONDecodeError:
-        failed = True
+    except json.JSONDecodeError as exc:
+        assert exc.msg == "Invalid \\escape"
     else:
-        failed = False
-    assert failed is True
+        raise AssertionError("escaped fixture must not parse")
     gated = _phase(raw, Path("/tmp"))
     assert gated is not None
     assert gated[0]["verdict"] == "BLOCKED"
@@ -105,16 +113,16 @@ def test_fence_shape_rejects_zero_many_and_outside_junk(tmp_path):
 
 
 def test_appointment_digest_is_not_the_thread_hash(tmp_path):
-    thread_hash = hashlib.sha256(b"6ae7886b-23c8-83e8-a136-f1b52b33d01f").hexdigest()
-    assert thread_hash != APPOINTMENT_MESSAGE
+    thread_hash = hashlib.sha256(SYNTHETIC_THREAD.encode("utf-8")).hexdigest()
+    assert thread_hash != SYNTHETIC_APPOINTMENT
     plane = {
         "kind": "REGISTRAR_RELAY",
         "not_issuer": True,
         "current_reviewer_conclusion": True,
-        "thread_id": "6ae7886b-23c8-83e8-a136-f1b52b33d01f",
+        "thread_id": SYNTHETIC_THREAD,
         "turn_id": "turn-test-only",
         "message_id": "message-test-only",
-        "appointment_original_digest": APPOINTMENT_MESSAGE,
+        "appointment_original_digest": SYNTHETIC_APPOINTMENT,
         "base_sha": "b" * 40,
         "candidate_sha": "c" * 40,
         "scope_digest": "d" * 64,
@@ -128,11 +136,10 @@ def test_appointment_digest_is_not_the_thread_hash(tmp_path):
     path.write_text(json.dumps(plane), encoding="utf-8")
     loaded = load_control_plane(path)
     assert loaded is not None
-    assert loaded["appointment_original_digest"] == APPOINTMENT_MESSAGE
+    assert loaded["appointment_original_digest"] == SYNTHETIC_APPOINTMENT
     plane["appointment_original_digest"] = thread_hash
     path.write_text(json.dumps(plane), encoding="utf-8")
     assert load_control_plane(path) is None
-    assert OWNER_APPOINTMENT_THREAD == "6ae7886b-23c8-83e8-a136-f1b52b33d01f"
 
 
 def test_durable_consume_survives_memory_clear_and_a_new_process(tmp_path):
