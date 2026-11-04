@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from octo.closing import (
+    APPOINTMENT_DIGEST,
     OWNER_APPOINTMENT_THREAD,
     PINNED_MESSAGE_ID,
     PINNED_TURN_ID,
@@ -109,6 +110,7 @@ def _install(
     metadata_verdict: str = "FAIL",
     proof: bool = True,
     service: dict | None = None,
+    transfer_overrides: dict | None = None,
 ) -> None:
     blob = root / "bytes" / receipt_id
     blob.parent.mkdir(parents=True, exist_ok=True)
@@ -125,17 +127,31 @@ def _install(
         thread = stored.get("thread") if isinstance(stored.get("thread"), dict) else {}
         turn = stored["turns"][0] if isinstance(stored.get("turns"), list) and stored["turns"] else {}
         item = turn["items"][0] if isinstance(turn.get("items"), list) and turn.get("items") else {}
-        (root / "transfers").mkdir(parents=True, exist_ok=True)
-        (root / "transfers" / "transfer-1.json").write_text(json.dumps({
+        text = item.get("text") if isinstance(item, dict) else None
+        runner = _runner()
+        transfer = {
+            "collector_receipt_id": "transfer-1",
             "transfer_receipt_id": "transfer-1",
+            "collected_at": AT,
             "raw_sha256": digest,
             "service_response_sha256": hashlib.sha256(service_bytes).hexdigest(),
+            "message_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest() if isinstance(text, str) else None,
             "thread_id": thread.get("id", stored.get("thread_id")),
             "turn_id": turn.get("id"),
-            "message_id": item.get("id"),
+            "message_id": item.get("id") if isinstance(item, dict) else None,
             "role": "agentMessage",
             "turn_status": turn.get("status", stored.get("turn", {}).get("status") if isinstance(stored.get("turn"), dict) else None),
-        }), encoding="utf-8")
+            "appointment_digest": APPOINTMENT_DIGEST,
+            "allowlist_sha256": hashlib.sha256(_allow_bytes()).hexdigest(),
+            "base_sha": runner["base_sha"],
+            "candidate_sha": runner["candidate_sha"],
+            "scope_digest": runner["scope_digest"],
+            "fixture_digest": runner["fixture_digest"],
+        }
+        if transfer_overrides:
+            transfer.update(transfer_overrides)
+        (root / "transfers").mkdir(parents=True, exist_ok=True)
+        (root / "transfers" / "transfer-1.json").write_text(json.dumps(transfer), encoding="utf-8")
     row = {
         "registration_id": receipt_id,
         "receipt_id": receipt_id,
@@ -163,11 +179,15 @@ def _install(
     _production(root, [row])
 
 
-def _allow(path: Path) -> Path:
-    path.write_text(json.dumps({
+def _allow_bytes() -> bytes:
+    return json.dumps({
         "issuer_allowlist": [TA_REVIEWER_ID],
         "source_allowlist": [ORIGINAL_REVIEWER_SESSION_ID],
-    }), encoding="utf-8")
+    }, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _allow(path: Path) -> Path:
+    path.write_bytes(_allow_bytes())
     return path
 
 
@@ -181,6 +201,7 @@ def _run(
     proof: bool = True,
     service: dict | None = None,
     clear_seen: bool = True,
+    transfer_overrides: dict | None = None,
 ):
     root = tmp_path / "reg"
     _install(
@@ -190,6 +211,7 @@ def _run(
         metadata_verdict=metadata_verdict,
         proof=proof,
         service=service,
+        transfer_overrides=transfer_overrides,
     )
     allow = _allow(tmp_path / "allow.json")
     monkeypatch.setenv("OCTO_TRUST_ALLOWLIST", str(allow))
@@ -476,3 +498,91 @@ def test_cx5_unverified_source_stays_blocked_when_test_only_is_false(tmp_path, m
     assert envelope["output"]["verdict"] != "PASS"
     assert _evidence(envelope)["runtime_pass"] is False
     assert _evidence(envelope)["test_only"] is False
+
+
+def _blocked_note(tmp_path, monkeypatch, **kwargs) -> str:
+    raw_doc = kwargs.pop("raw", json.dumps(_original("PASS")).encode())
+    envelope = _run(tmp_path, monkeypatch, raw_doc, **kwargs)
+    assert envelope["status"] == "BLOCKED"
+    assert envelope["output"]["verdict"] != "PASS"
+    return _evidence(envelope)["note"]
+
+
+def test_adn01_projection_is_not_the_original_return(tmp_path, monkeypatch):
+    assert _blocked_note(tmp_path, monkeypatch, receipt_id="adn01", service=_projection(json.dumps(_original("PASS")).encode())) == "SOURCE_UNPROVEN"
+
+
+def test_adn02_wrong_full_thread_is_blocked(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    assert _blocked_note(tmp_path, monkeypatch, raw=raw, receipt_id="adn02", service=_service(raw, thread_id="6ae7886b-ffff-83e8-a136-f1b52b33d01f")) == "SOURCE_UNPROVEN"
+
+
+def test_adn03_wrong_turn_or_message_is_blocked(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    assert _blocked_note(tmp_path, monkeypatch, raw=raw, receipt_id="adn03", service=_service(raw, message_id="00000000-0000-4000-8000-000000000099")) == "SOURCE_UNPROVEN"
+
+
+def test_adn04_turn_not_completed_is_blocked(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    assert _blocked_note(tmp_path, monkeypatch, raw=raw, receipt_id="adn04", service=_service(raw, status="in_progress")) == "SOURCE_UNPROVEN"
+
+
+def test_adn05_user_preview_and_content_reference_are_blocked(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    for kind in ("userMessage", "preview", "content-reference"):
+        assert _blocked_note(tmp_path / kind, monkeypatch, raw=raw, receipt_id=f"adn05-{kind}", service=_service(raw, message_type=kind)) == "SOURCE_UNPROVEN"
+
+
+def test_adn06_claimed_hash_without_text_is_blocked(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    service = _service(raw, omit_text=True, message_sha256=hashlib.sha256(raw).hexdigest())
+    assert _blocked_note(tmp_path, monkeypatch, raw=raw, receipt_id="adn06", service=service) == "SOURCE_UNPROVEN"
+
+
+def test_adn07_text_bytes_must_equal_the_review_receipt(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    assert _blocked_note(tmp_path, monkeypatch, raw=raw, receipt_id="adn07", service=_service(raw, text="different-body")) == "SOURCE_UNPROVEN"
+
+
+def test_adn08_collector_sha_or_fake_server_id_is_blocked(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    assert _blocked_note(tmp_path / "sha", monkeypatch, raw=raw, receipt_id="adn08-sha", transfer_overrides={"service_response_sha256": "ab" * 32}) == "SOURCE_UNPROVEN"
+    assert _blocked_note(tmp_path / "id", monkeypatch, raw=raw, receipt_id="adn08-id", transfer_overrides={"server_call_id": "srv-not-returned"}) == "SOURCE_UNPROVEN"
+
+
+def test_adn09_stale_appointment_or_tuple_is_blocked(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    assert _blocked_note(tmp_path / "apt", monkeypatch, raw=raw, receipt_id="adn09-apt", transfer_overrides={"appointment_digest": "cd" * 32}) == "SOURCE_UNPROVEN"
+    assert _blocked_note(tmp_path / "tuple", monkeypatch, raw=raw, receipt_id="adn09-tuple", transfer_overrides={"fixture_digest": "ee" * 32}) == "SOURCE_UNPROVEN"
+
+
+def test_adn10_and_adn11_failure_retries_and_success_replay_is_rejected(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    first = _run(tmp_path, monkeypatch, raw, receipt_id="adn10", proof=False)
+    assert first["status"] == "BLOCKED"
+    second = _run(tmp_path, monkeypatch, raw, receipt_id="adn10", proof=True, clear_seen=False)
+    assert second["status"] == "OK" and second["output"]["verdict"] == "PASS"
+    assert _evidence(second)["runtime_pass"] is False
+    third = _run(tmp_path, monkeypatch, raw, receipt_id="adn10", proof=True, clear_seen=False)
+    assert third["status"] == "BLOCKED"
+    assert "EVIDENCE_UNVERIFIED" in third["output"]["evidence"][0]["note"]
+
+
+def test_adn12_discard_compensation_is_absent():
+    root = Path(__file__).resolve().parents[1]
+    closing = (root / "octo" / "closing.py").read_text(encoding="utf-8")
+    trusted = (root / "octo" / "trusted_original.py").read_text(encoding="utf-8")
+    assert "release_consumed_receipt" not in closing
+    assert "release_consumed_receipt" not in trusted
+    assert "seen.discard" not in closing
+    assert "seen.discard" not in trusted
+
+
+def test_adn13_historical_source_bytes_do_not_become_the_current_verdict(tmp_path, monkeypatch):
+    fixture = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "n11-read-thread"
+    historical = json.loads((fixture / "service-response.exact.nolf").read_text(encoding="utf-8"))
+    assert describe_read_thread(historical) is not None
+    envelope = _run(tmp_path, monkeypatch, json.dumps(_original("PASS")).encode(), receipt_id="adn13", service=historical)
+    assert envelope["status"] == "BLOCKED"
+    assert envelope["output"]["verdict"] != "PASS"
+    assert _evidence(envelope)["runtime_pass"] is False

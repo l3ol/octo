@@ -152,6 +152,8 @@ _PHASE_B_VERDICTS = frozenset({"PASS", "REVISE", "BLOCKED", "FAIL"})
 OWNER_APPOINTMENT_THREAD = "6ae7886b-23c8-83e8-a136-f1b52b33d01f"
 PINNED_TURN_ID = "86b72901-5322-400a-be4c-063f80a6eb0b"
 PINNED_MESSAGE_ID = "20c53a68-b7f0-4d98-ba11-966b5f24eadb"
+APPOINTMENT_DIGEST = hashlib.sha256(OWNER_APPOINTMENT_THREAD.encode("utf-8")).hexdigest()
+_FAKE_SERVER_IDS = frozenset({"server_call_id", "server_native_id", "tool_call_id"})
 
 
 def _phase_b_blocked(scope: Any, note: str, *, original_verdict: str | None = None) -> tuple[dict, str]:
@@ -243,10 +245,57 @@ def parse_authenticated_read_thread(service: Mapping[str, Any]) -> dict[str, str
     return None
 
 
+def _allowlist_digest() -> str | None:
+    from octo.trusted_original import ALLOWLIST_ENV
+    env = os.environ.get(ALLOWLIST_ENV)
+    if not env:
+        return None
+    path = Path(env)
+    if path.is_symlink() or not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _collector_matches(
+    transfer: Mapping[str, Any],
+    *,
+    actual: str,
+    service_sha: str,
+    text_sha: str,
+    parsed: Mapping[str, str],
+    allowlist_sha: str | None,
+    runner_binding: Mapping[str, Any] | None,
+) -> bool:
+    if not isinstance(transfer.get("collector_receipt_id"), str) or not transfer["collector_receipt_id"]:
+        return False
+    if not isinstance(transfer.get("collected_at"), str) or not transfer["collected_at"]:
+        return False
+    if allowlist_sha is None or transfer.get("allowlist_sha256") != allowlist_sha:
+        return False
+    if transfer.get("appointment_digest") != APPOINTMENT_DIGEST:
+        return False
+    if not isinstance(runner_binding, Mapping):
+        return False
+    for key in ("base_sha", "candidate_sha", "scope_digest", "fixture_digest"):
+        if transfer.get(key) != runner_binding.get(key):
+            return False
+    return (
+        transfer.get("raw_sha256") == actual
+        and transfer.get("service_response_sha256") == service_sha
+        and transfer.get("message_sha256") == text_sha
+        and transfer.get("thread_id") == parsed["thread_id"]
+        and transfer.get("turn_id") == parsed["turn_id"]
+        and transfer.get("message_id") == parsed["message_id"]
+        and transfer.get("role") == "agentMessage"
+        and transfer.get("turn_status") == "completed"
+    )
+
+
 def _phase_b_source_authentic(
     registry_view: ReadOnlyRegistry,
     record: Mapping[str, Any],
     raw: bytes,
+    runner_binding: Mapping[str, Any] | None,
 ) -> bool:
     """Stored read_thread return plus transfer and custody. Projection fields are not proof."""
     actual = hashlib.sha256(raw).hexdigest()
@@ -274,18 +323,21 @@ def _phase_b_source_authentic(
     claimed = service.get("message_sha256")
     if isinstance(claimed, str) and claimed != actual:
         return False
+    if record.get("bytes_sha256") != actual:
+        return False
     transfer = read_stored_json(registry_view, f"transfers/{transfer_id}.json")
-    if not isinstance(transfer, dict):
+    if not isinstance(transfer, dict) or _FAKE_SERVER_IDS.intersection(transfer):
         return False
     service_sha = hashlib.sha256(service_bytes).hexdigest()
-    return (
-        transfer.get("raw_sha256") == actual
-        and transfer.get("service_response_sha256") == service_sha
-        and transfer.get("thread_id") == parsed["thread_id"]
-        and transfer.get("turn_id") == parsed["turn_id"]
-        and transfer.get("message_id") == parsed["message_id"]
-        and transfer.get("role") == "agentMessage"
-        and transfer.get("turn_status") == "completed"
+    text_sha = hashlib.sha256(parsed["text"].encode("utf-8")).hexdigest()
+    return _collector_matches(
+        transfer,
+        actual=actual,
+        service_sha=service_sha,
+        text_sha=text_sha,
+        parsed=parsed,
+        allowlist_sha=_allowlist_digest(),
+        runner_binding=runner_binding,
     )
 
 
@@ -312,7 +364,7 @@ def phase_b_from_raw(
         return _phase_b_blocked(scope, "PHASE_B_PARSE_FAILED")
     if not _phase_b_binding_matches(document.get("binding_tuple"), runner_binding):
         return _phase_b_blocked(scope, "BINDING_MISMATCH", original_verdict=verdict)
-    if not _phase_b_source_authentic(registry_view, record, raw):
+    if not _phase_b_source_authentic(registry_view, record, raw, runner_binding):
         return _phase_b_blocked(scope, "SOURCE_UNPROVEN", original_verdict=verdict)
     evidence = {
         "note": "PHASE_B",
