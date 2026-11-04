@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from octo.envelope import build_envelope, validate_envelope
+from octo.objects import digest
 
 EXCLUDED_NODE_IDS = ("N6", "N7")
 _VERDICTS = frozenset({"FACT", "CLAIM", "STALE"})
@@ -124,6 +125,80 @@ def run_n1(inputs: Mapping[str, Any], *, at: str) -> dict:
     return emit_envelope(node_id="N1", at=at, inputs=dict(inputs), status="OK", output=output)
 
 
+_QUERY_FAILURES = frozenset({"failed", "error", "timeout", "refused", "rejected"})
+
+
+def _source_name(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
+def _receipt_failed(receipt: Mapping[str, Any]) -> bool:
+    status = receipt.get("status")
+    if isinstance(status, str) and status.strip().lower() in _QUERY_FAILURES:
+        return True
+    if receipt.get("ok") is False or receipt.get("queried") is False:
+        return True
+    if receipt.get("error") or receipt.get("timeout") is True:
+        return True
+    return False
+
+
+def _query_results(material: Mapping[str, Any]) -> tuple[set[str], set[str]]:
+    """Sources with a recomputable receipt. A success flag alone is not a receipt."""
+    successes: set[str] = set()
+    failures: set[str] = set()
+    rows = material.get("key_evidence", [])
+    if not isinstance(rows, list):
+        return successes, failures
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        receipt = row.get("receipt")
+        claimed = row.get("uri_or_hash")
+        if not isinstance(receipt, dict) or not isinstance(claimed, str):
+            continue
+        if digest(receipt) != claimed:
+            continue
+        source = _source_name(receipt.get("source") or receipt.get("source_id"))
+        if source is None:
+            continue
+        if _receipt_failed(receipt) or receipt.get("queried") is not True:
+            failures.add(source)
+        else:
+            successes.add(source)
+    return successes, failures
+
+
+def _has_successful_query_proof(material: Mapping[str, Any]) -> bool:
+    """Every required source was queried, the receipt recomputes, and sources[] lists it."""
+    required = material.get("required_sources")
+    sources = material.get("sources")
+    if not isinstance(required, list) or not required or not isinstance(sources, list):
+        return False
+    required_names = []
+    for item in required:
+        name = _source_name(item)
+        if name is None:
+            return False
+        required_names.append(name)
+    required_set = set(required_names)
+    listed = []
+    for item in sources:
+        name = _source_name(item)
+        if name is None:
+            return False
+        listed.append(name)
+    if set(listed) != required_set:
+        return False
+    successes, failures = _query_results(material)
+    if failures & required_set:
+        return False
+    return required_set <= successes
+
+
 def run_n2(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | None = None) -> dict:
     """N2 input is only ``{intent_id}``. Bound context is not part of the hash."""
     _exact_keys(inputs, {"intent_id"})
@@ -156,13 +231,13 @@ def run_n2(inputs: Mapping[str, Any], *, at: str, bound: Mapping[str, Any] | Non
             evidence.append(dict(row))
     open_states = list(material.get("open_states", ["N6/N7 not run this stage"]))
     status = "OK"
-    if gaps or material.get("source_unavailable"):
+    if not _has_successful_query_proof(material) or gaps or material.get("source_unavailable"):
         status = "PARTIAL"
         for gap in gaps:
             label = f"gap:{gap}"
             if label not in open_states:
                 open_states.append(label)
-        if not gaps:
+        if "gap:SOURCE_UNAVAILABLE" not in open_states:
             open_states.append("gap:SOURCE_UNAVAILABLE")
     output = {
         "intent_id": inputs["intent_id"],

@@ -6,7 +6,7 @@ import pytest
 
 from octo.envelope import validate_envelope
 from octo.nodes import emit_envelope, run_n1, run_n3, run_n8
-from octo.objects import inputs_hash
+from octo.objects import digest, inputs_hash
 from octo.standard import run_prefix
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,20 +22,31 @@ def _assert_envelope(envelope: dict) -> None:
     assert envelope["output"] is None or "N6" != envelope["output"].get("node_id")
 
 
+def _proven_source(source: str) -> dict:
+    receipt = {"source": source, "queried": True, "ok": True, "result_count": 1}
+    return {
+        "uri_or_hash": digest(receipt),
+        "receipt": receipt,
+        "freshness": "fresh",
+    }
+
+
 def _pack() -> dict:
     n1_in = PLAN["nodes"]["N1"]["input"]
     n1 = run_n1(n1_in, at=AT)
     intent = n1["output"]
+    source = "CHIEF-CONSENSUS-INSTRUCTION-G2-S1.json"
     return {
         "n1": n1_in,
         "n2": {"intent_id": intent["intent_id"]},
         "n2_bound": {
             "current_decisions": ["S1_CONTROLLED_REUSE"],
-            "key_evidence": ["CCI"],
+            "key_evidence": [_proven_source(source)],
             "open_states": ["kill_line SOURCE_UNAVAILABLE", "N6/N7 not run this stage"],
             "prohibitions": ["No merge"],
             "assembled_at": "TEST_FIXTURE",
-            "sources": ["CHIEF-CONSENSUS-INSTRUCTION-G2-S1.json"],
+            "required_sources": [source],
+            "sources": [source],
         },
         "n3": {
             "intent": intent,
