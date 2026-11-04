@@ -1,0 +1,149 @@
+name: TA GATES 99fd CI derived-pin independent review v2
+on:
+  push:
+    branches: [reviewer/ta-octo-gates-20261101]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ta-gates-99fd-derived-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ta-gates-99fd-derived-pin:
+    if: github.ref == 'refs/heads/reviewer/ta-octo-gates-20261101'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    env:
+      EXPECTED_TIP: 99fd6a48eca58b88b6730d88875672fb72da9bac
+      EXPECTED_TREE: 2ba7c96c9c908aedec7f475915f2addb7b70ccf4
+      EXPECTED_BASE: 5443c9b4dde7fc208a0a72457c87904650829f77
+      ARCHIVE_SHA: 42368539d65f50337ea1fbe92e4cf41fba086869aafdb00595fcf0fbb51ed0a8
+      CONFIG_SHA: 2feb73d01b2a717b0219253967770ad2da094dd137b918c4a3a35e1dd27ff59a
+      OPS_MANIFEST_SOURCE_SHA_REFERENCE_ONLY: 6250b8d339dc5278c4aaf2a00577144ff5ce11c9500d7b5f0b3e185984a29763
+      HARNESS_V2_SHA: af71f8514704eda28e8fc913d9492c918d17fa46b6fc6cb94ba4473b006d3b04
+      MATERIALIZER_V2_SHA: a78aa1c616a12e780219ee978d6efa3d3bd3f9bbeaac424a34df26ee3228f2e8
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      GIT_OPTIONAL_LOCKS: "0"
+      GIT_TERMINAL_PROMPT: "0"
+
+    steps:
+      - name: Checkout immutable Reviewer infrastructure commit
+        uses: actions/checkout@v4
+        with:
+          repository: l3ol/octo
+          ref: ${{ github.sha }}
+          path: reviewer
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact immutable PR12 tested source
+        uses: actions/checkout@v4
+        with:
+          repository: l3ol/octo
+          ref: 99fd6a48eca58b88b6730d88875672fb72da9bac
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup existing Ubuntu 22.04 CI Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install tip99fd declared CI dependencies in ephemeral runner only
+        run: python3 -m pip install -r candidate/requirements.txt
+
+      - name: Verify immutable candidate tuple and exact TA-owned script SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C candidate rev-parse HEAD)" = "$EXPECTED_TIP"
+          test "$(git -C candidate rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test "$(git -C candidate cat-file -t "$EXPECTED_BASE")" = commit
+          git -C candidate merge-base --is-ancestor "$EXPECTED_BASE" "$EXPECTED_TIP"
+          test -z "$(git -C candidate status --porcelain=v1 --untracked-files=all)"
+          test "$(sha256sum reviewer/reviewer/ta-octo-gates/ta_gates_99fd_ci_harness_v2.py | cut -d' ' -f1)" = "$HARNESS_V2_SHA"
+          test "$(sha256sum reviewer/reviewer/ta-octo-gates/ta_gates_99fd_ci_pin_materialize_v2.py | cut -d' ' -f1)" = "$MATERIALIZER_V2_SHA"
+          echo "TA_FIXED_TUPLE candidate=$EXPECTED_TIP tree=$EXPECTED_TREE base=$EXPECTED_BASE"
+          echo "TA_REVIEWER_RUN_COMMIT=$GITHUB_SHA"
+          echo "TA_REVIEWER_WORKFLOW_SHA=$(sha256sum reviewer/.github/workflows/ta-octo-gates-acceptance-v2.yml | cut -d' ' -f1)"
+
+      - name: Derive new CI-only pin from fixed git object and retain new manifest SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ta-results"
+          python3 -B reviewer/reviewer/ta-octo-gates/ta_gates_99fd_ci_pin_materialize_v2.py \
+            --candidate "$GITHUB_WORKSPACE/candidate" \
+            --runner-temp "$RUNNER_TEMP" \
+            --pin-base "$RUNNER_TEMP/ta-pin-loadpath" \
+            --receipt "$RUNNER_TEMP/ta-results/ci-pin-lineage.json"
+          test -s "$RUNNER_TEMP/ta-pin-loadpath/manifests/pin99fd-ci.json"
+          test -s "$RUNNER_TEMP/ta-results/ci-pin-lineage.json"
+          python3 -B -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["source_git_archive_sha256"]==sys.argv[2] and d["source_config_digest"]==sys.argv[3] and not d["ops_original_manifest_bytes_imported"] and not d["g4_pass"]; print("CI_DERIVED_MANIFEST_SHA="+d["ci_runtime_manifest_sha256"],"LINEAGE_ORIGINAL_OPS_SHA_REFERENCE_ONLY="+d["ops_original_manifest_sha256_reference_only"])' "$RUNNER_TEMP/ta-results/ci-pin-lineage.json" "$ARCHIVE_SHA" "$CONFIG_SHA"
+          sha256sum "$RUNNER_TEMP/ta-results/ci-pin-lineage.json" "$RUNNER_TEMP/ta-pin-loadpath/manifests/pin99fd-ci.json"
+          echo "CI_DERIVED_PIN_IS_NOT_THE_ORIGINAL_OPS_PRODUCTION_PIN"
+
+      - name: Execute unchanged source GATES entrance with Reviewer-owned v2 harness
+        shell: bash
+        env:
+          GATES_PIN_LOADPATH: ${{ runner.temp }}/ta-pin-loadpath
+          TA_CANDIDATE_ROOT: ${{ github.workspace }}/candidate
+          TA_PIN_ROOT: ${{ runner.temp }}/ta-pin-loadpath
+          TA_HARNESS_SCRIPT: ${{ github.workspace }}/reviewer/reviewer/ta-octo-gates/ta_gates_99fd_ci_harness_v2.py
+          TA_RESULT_ROOT: ${{ runner.temp }}/ta-results
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$TA_PIN_ROOT/pins/$EXPECTED_TIP"
+          export TA_HOST_NET_NS="$(readlink /proc/self/ns/net)"
+          export WF_SHA="$(sha256sum reviewer/.github/workflows/ta-octo-gates-acceptance-v2.yml | cut -d' ' -f1)"
+          if bash "$TA_CANDIDATE_ROOT/gates/enter_exec_ctx.sh" \
+              unshare --net -- bash -c '
+                set -euo pipefail
+                mount --bind "$TA_CANDIDATE_ROOT" "$TA_CANDIDATE_ROOT"
+                mount -o remount,bind,ro "$TA_CANDIDATE_ROOT"
+                python3 -B "$TA_HARNESS_SCRIPT" \
+                  --candidate "$TA_CANDIDATE_ROOT" \
+                  --pin-loadpath "$TA_PIN_ROOT" \
+                  --output "$TA_RESULT_ROOT" \
+                  --reviewer-script-sha "$HARNESS_V2_SHA" \
+                  --workflow-sha "$WF_SHA" \
+                  --lineage-receipt "$TA_RESULT_ROOT/ci-pin-lineage.json" \
+                  --materializer-sha "$MATERIALIZER_V2_SHA"
+              ' > "$TA_RESULT_ROOT/harness.stdout.log" 2> "$TA_RESULT_ROOT/harness.stderr.log"; then
+            rc=0
+          else
+            rc=$?
+          fi
+          echo "$rc" > "$TA_RESULT_ROOT/harness.exitcode"
+          echo "TA_HARNESS_EXIT=$rc"
+          cat "$TA_RESULT_ROOT/harness.stdout.log"
+          cat "$TA_RESULT_ROOT/harness.stderr.log"
+          sha256sum "$TA_RESULT_ROOT/harness.stdout.log" "$TA_RESULT_ROOT/harness.stderr.log"
+          test "$rc" -eq 0
+
+      - name: Print machine-readable evidence summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -s "$RUNNER_TEMP/ta-results/ta-gates-results.json" ]; then
+            python3 -B -c 'import json,sys;x=json.load(open(sys.argv[1]));print("TA_REPORT",x["status"],"scenes_corrob",x["scene_replay_correlated_count"],"l1",x["l1_disposable_git_real_drill"]["status"],"g4_pass",x["g4_pass"])' "$RUNNER_TEMP/ta-results/ta-gates-results.json"
+            sha256sum "$RUNNER_TEMP/ta-results/ta-gates-results.json"
+          else
+            echo "TA_REPORT_NOT_AVAILABLE: see raw stderr and preflight"
+          fi
+
+      - name: Preserve separate test and failure raw evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ta-gates-99fd-ci-derived-pin-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ta-results/
+          retention-days: 7
+          if-no-files-found: warn
