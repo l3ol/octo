@@ -553,7 +553,8 @@ def test_allowlisted_review_stops_at_gap03_until_custody_matches(tmp_path):
         assert accepted.mechanism_accept is True
         assert accepted.test_only is False
         again = consume_trusted_original(binding, _view(root), set(), allowlist_path=allow)
-        assert again.reason_code == "EVIDENCE_UNVERIFIED"
+        assert isinstance(again, Found)
+        assert again.mechanism_accept is True
     finally:
         _unseal(root)
     logged = load_allowlists(allow)

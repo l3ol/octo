@@ -3,7 +3,16 @@ import hashlib
 import json
 from pathlib import Path
 
-from octo.closing import OWNER_APPOINTMENT_THREAD, TA_REVIEWER_ID, _from_consume, run_n11
+from octo.closing import (
+    OWNER_APPOINTMENT_THREAD,
+    PINNED_MESSAGE_ID,
+    PINNED_TURN_ID,
+    TA_REVIEWER_ID,
+    _from_consume,
+    describe_read_thread,
+    parse_authenticated_read_thread,
+    run_n11,
+)
 from octo.g3_review import product_scope_digest
 from octo.trusted_original import (
     ORIGINAL_REVIEWER_SESSION_ID,
@@ -38,6 +47,30 @@ def _original(verdict: str, **overrides) -> dict:
 
 
 def _service(raw: bytes, **overrides) -> dict:
+    text = raw.decode("utf-8")
+    item = {
+        "type": overrides.pop("message_type", "agentMessage"),
+        "id": overrides.pop("message_id", PINNED_MESSAGE_ID),
+        "text": overrides.pop("text", text),
+    }
+    if overrides.pop("omit_text", False):
+        item.pop("text", None)
+    body = {
+        "schemaVersion": 1,
+        "thread": {"id": overrides.pop("thread_id", OWNER_APPOINTMENT_THREAD)},
+        "turns": [{
+            "id": overrides.pop("turn_id", PINNED_TURN_ID),
+            "status": overrides.pop("status", "completed"),
+            "items": [item],
+        }],
+    }
+    if "message_sha256" in overrides:
+        body["message_sha256"] = overrides.pop("message_sha256")
+    body.update(overrides)
+    return body
+
+
+def _projection(raw: bytes, **overrides) -> dict:
     body = {
         "thread_id": OWNER_APPOINTMENT_THREAD,
         "turn": {"status": "completed"},
@@ -87,12 +120,21 @@ def _install(
     }), encoding="utf-8")
     if proof or service is not None:
         stored = _service(raw) if service is None else service
-        (root / "service-response.json").write_text(json.dumps(stored), encoding="utf-8")
+        service_bytes = json.dumps(stored, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        (root / "service-response.json").write_bytes(service_bytes)
+        thread = stored.get("thread") if isinstance(stored.get("thread"), dict) else {}
+        turn = stored["turns"][0] if isinstance(stored.get("turns"), list) and stored["turns"] else {}
+        item = turn["items"][0] if isinstance(turn.get("items"), list) and turn.get("items") else {}
         (root / "transfers").mkdir(parents=True, exist_ok=True)
         (root / "transfers" / "transfer-1.json").write_text(json.dumps({
             "transfer_receipt_id": "transfer-1",
             "raw_sha256": digest,
-            "thread_id": OWNER_APPOINTMENT_THREAD,
+            "service_response_sha256": hashlib.sha256(service_bytes).hexdigest(),
+            "thread_id": thread.get("id", stored.get("thread_id")),
+            "turn_id": turn.get("id"),
+            "message_id": item.get("id"),
+            "role": "agentMessage",
+            "turn_status": turn.get("status", stored.get("turn", {}).get("status") if isinstance(stored.get("turn"), dict) else None),
         }), encoding="utf-8")
     row = {
         "registration_id": receipt_id,
@@ -310,12 +352,30 @@ def test_cx2_prefix_session_is_not_the_owner_thread(tmp_path, monkeypatch):
 def test_cx3_bad_service_response_is_blocked(tmp_path, monkeypatch):
     raw_doc = json.dumps(_original("PASS")).encode()
     wrong_hash = _service(raw_doc, message_sha256="ab" * 32)
-    wrong_type = _service(raw_doc)
-    wrong_type["agentMessage"] = {"type": "image", "text": raw_doc.decode("utf-8")}
-    not_completed = _service(raw_doc)
-    not_completed["turn"] = {"status": "in_progress"}
+    wrong_type = _service(raw_doc, message_type="userMessage")
+    not_completed = _service(raw_doc, status="in_progress")
     for name, service in (("hash", wrong_hash), ("type", wrong_type), ("turn", not_completed)):
         envelope = _run(tmp_path / name, monkeypatch, raw_doc, receipt_id=f"cx3-{name}", service=service)
+        assert envelope["status"] == "BLOCKED"
+        assert envelope["output"]["verdict"] != "PASS"
+        assert _evidence(envelope)["note"] == "SOURCE_UNPROVEN"
+
+
+def test_corrective_requires_pinned_agent_message_bytes(tmp_path, monkeypatch):
+    raw_doc = json.dumps(_original("PASS")).encode()
+    wrong_turn = _run(
+        tmp_path / "turn",
+        monkeypatch,
+        raw_doc,
+        receipt_id="pin-turn",
+        service=_service(raw_doc, turn_id="00000000-0000-4000-8000-000000000001"),
+    )
+    user_item = _service(raw_doc, message_type="userMessage")
+    preview = _service(raw_doc, message_type="content-reference")
+    wrong_text = _service(raw_doc, text="not-the-review-receipt")
+    assert wrong_turn["status"] == "BLOCKED" and wrong_turn["output"]["verdict"] != "PASS"
+    for name, service in (("user", user_item), ("preview", preview), ("text", wrong_text)):
+        envelope = _run(tmp_path / name, monkeypatch, raw_doc, receipt_id=f"pin-{name}", service=service)
         assert envelope["status"] == "BLOCKED"
         assert envelope["output"]["verdict"] != "PASS"
         assert _evidence(envelope)["note"] == "SOURCE_UNPROVEN"
@@ -335,6 +395,78 @@ def test_cx4_phase_b_failure_can_retry_same_receipt(tmp_path, monkeypatch):
     third = _run(tmp_path, monkeypatch, raw_doc, receipt_id="cx4", proof=True, clear_seen=False)
     assert third["status"] == "BLOCKED"
     assert "EVIDENCE_UNVERIFIED" in third["output"]["evidence"][0]["note"]
+
+
+def test_rf_cx1_projection_only_is_blocked(tmp_path, monkeypatch):
+    raw_doc = json.dumps(_original("PASS")).encode()
+    envelope = _run(tmp_path, monkeypatch, raw_doc, receipt_id="rf1", service=_projection(raw_doc))
+    assert envelope["status"] == "BLOCKED"
+    assert envelope["output"]["verdict"] != "PASS"
+    assert _evidence(envelope)["note"] == "SOURCE_UNPROVEN"
+
+
+def test_rf_cx3_hash_without_message_body_is_blocked(tmp_path, monkeypatch):
+    raw_doc = json.dumps(_original("PASS")).encode()
+    service = _service(raw_doc, omit_text=True, message_sha256=hashlib.sha256(raw_doc).hexdigest())
+    envelope = _run(tmp_path, monkeypatch, raw_doc, receipt_id="rf3", service=service)
+    assert envelope["status"] == "BLOCKED"
+    assert envelope["output"]["verdict"] != "PASS"
+    assert _evidence(envelope)["note"] == "SOURCE_UNPROVEN"
+
+
+def test_rf_cx4_real_shape_is_format_compat_and_historical_business_stays_blocked(tmp_path, monkeypatch):
+    fixture = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "n11-read-thread"
+    service_bytes = (fixture / "service-response.exact.nolf").read_bytes()
+    message_bytes = (fixture / "agent-message.exact.nolf").read_bytes()
+    assert hashlib.sha256(service_bytes).hexdigest() == "cf3deb9e7d709b4b1c43468dbf1af0f4bb559e6e29c165fae2b58292ed0f39eb"
+    assert hashlib.sha256(message_bytes).hexdigest() == "bd2ff242bbff293779b482ed0a90640174560b28783b919e1c90f377ea5edeb0"
+    historical = json.loads(service_bytes.decode("utf-8"))
+    parsed = describe_read_thread(historical)
+    assert parsed is not None
+    assert parse_authenticated_read_thread(historical) is None
+    assert parsed["thread_id"] == OWNER_APPOINTMENT_THREAD
+    assert parsed["turn_id"] == "3c9945f6-aece-4a2e-87a0-ed2a11722424"
+    assert parsed["message_id"] == "feee2cda-befb-4183-9e48-9da3fc53130b"
+    assert parsed["text"].encode("utf-8") == message_bytes
+    current = json.dumps(_original("PASS")).encode()
+    envelope = _run(
+        tmp_path,
+        monkeypatch,
+        current,
+        receipt_id="rf4",
+        service=json.loads(service_bytes.decode("utf-8")),
+    )
+    assert envelope["status"] == "BLOCKED"
+    assert envelope["output"]["verdict"] != "PASS"
+    assert _evidence(envelope)["runtime_pass"] is False
+
+
+def test_rf_cx2_fake_service_without_message_body_is_blocked(tmp_path, monkeypatch):
+    raw_doc = json.dumps(_original("PASS")).encode()
+    service = _service(raw_doc, omit_text=True)
+    envelope = _run(tmp_path, monkeypatch, raw_doc, receipt_id="rf2", service=service)
+    assert envelope["status"] == "BLOCKED"
+    assert envelope["output"]["verdict"] != "PASS"
+    assert _evidence(envelope)["note"] == "SOURCE_UNPROVEN"
+
+
+def test_rf_cx5_format_pack_is_not_current_pass(tmp_path, monkeypatch):
+    fixture = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "n11-read-thread"
+    historical = json.loads((fixture / "service-response.exact.nolf").read_text(encoding="utf-8"))
+    current = json.dumps(_original("PASS")).encode()
+    envelope = _run(tmp_path, monkeypatch, current, receipt_id="rf5", service=historical)
+    assert envelope["status"] == "BLOCKED"
+    assert envelope["output"]["verdict"] != "PASS"
+    assert _evidence(envelope)["runtime_pass"] is False
+    assert envelope["output"]["verdict"] != "OK"
+
+
+def test_rf_cx6_moved_self_report_is_not_proof(tmp_path, monkeypatch):
+    raw_doc = json.dumps(_original("PASS")).encode()
+    envelope = _run(tmp_path, monkeypatch, raw_doc, receipt_id="rf6", service=_projection(raw_doc))
+    assert envelope["status"] == "BLOCKED"
+    assert envelope["output"]["verdict"] != "PASS"
+    assert _evidence(envelope)["note"] == "SOURCE_UNPROVEN"
 
 
 def test_cx5_unverified_source_stays_blocked_when_test_only_is_false(tmp_path, monkeypatch):

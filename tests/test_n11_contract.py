@@ -157,8 +157,8 @@ def test_mf_n11_03_gap03_failure_can_retry_and_success_is_once(tmp_path):
         assert accepted.mechanism_accept is True
         assert accepted.test_only is False
         again = consume_trusted_original(_binding(), view, set(), allowlist_path=allow)
-        assert again.reason_code == "EVIDENCE_UNVERIFIED"
-        assert again.detail != "GAP-03"
+        assert isinstance(again, Found)
+        assert again.mechanism_accept is True
     finally:
         _unseal(root)
 

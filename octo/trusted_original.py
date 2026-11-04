@@ -206,6 +206,14 @@ def _read_confined(root: Path, ref: Any) -> bytes | str:
     return b"".join(chunks)
 
 
+def read_stored_bytes(registry_view: ReadOnlyRegistry, ref: Any) -> bytes | None:
+    """Read exact stored bytes. A rewritten projection is not this payload."""
+    payload = _read_confined(registry_view.root, ref)
+    if isinstance(payload, str):
+        return None
+    return payload
+
+
 def read_stored_json(registry_view: ReadOnlyRegistry, ref: Any) -> dict | None:
     """Read one JSON object already stored in the registry. No new channel."""
     payload = _read_confined(registry_view.root, ref)
@@ -218,12 +226,12 @@ def read_stored_json(registry_view: ReadOnlyRegistry, ref: Any) -> dict | None:
     return document if isinstance(document, dict) else None
 
 
-def release_consumed_receipt(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> None:
-    """Drop a receipt marked before Phase B mapping failed, so the same id can be retried."""
+def mark_receipt_consumed(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> None:
+    """Record one receipt after source proof and verdict mapping both succeed."""
     receipt_id = record.get("receipt_id")
-    seen = _CONSUMED_RECEIPTS.get(str(registry_view.root))
-    if isinstance(receipt_id, str) and seen is not None:
-        seen.discard(receipt_id)
+    if not isinstance(receipt_id, str) or not receipt_id:
+        return
+    _CONSUMED_RECEIPTS.setdefault(str(registry_view.root), set()).add(receipt_id)
 
 
 def load_trusted_raw(registry_view: ReadOnlyRegistry, record: Mapping[str, Any]) -> bytes | None:
@@ -562,5 +570,4 @@ def _review_decision(
     verified = _gap03_readonly(registry_view.root, record, actual)
     if verified is not True:
         return Rejected("EVIDENCE_UNVERIFIED", "GAP-03")
-    seen.add(receipt_id)
     return Found(record=dict(record), test_only=False, mechanism_accept=True)
