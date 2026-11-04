@@ -614,8 +614,10 @@ def test_rf_cx4_real_shape_is_format_compat_and_historical_business_stays_blocke
     fixture = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "n11-read-thread"
     service_bytes = (fixture / "service-response.exact.nolf").read_bytes()
     message_bytes = (fixture / "agent-message.exact.nolf").read_bytes()
-    assert hashlib.sha256(service_bytes).hexdigest() == "cf3deb9e7d709b4b1c43468dbf1af0f4bb559e6e29c165fae2b58292ed0f39eb"
-    assert hashlib.sha256(message_bytes).hexdigest() == "bd2ff242bbff293779b482ed0a90640174560b28783b919e1c90f377ea5edeb0"
+    assert hashlib.sha256(service_bytes).hexdigest() == "5e3183c5285b8968a91264259fd61194e468c7010f210f5691aeb724b478e6d0"
+    assert hashlib.sha256(message_bytes).hexdigest() == "fa3a823d8751a3abe31d483c572a7a306ad422b509bf5227f9fbf4dd0ddd4275"
+    assert hashlib.sha256(service_bytes).hexdigest() != "cf3deb9e7d709b4b1c43468dbf1af0f4bb559e6e29c165fae2b58292ed0f39eb"
+    assert hashlib.sha256(message_bytes).hexdigest() != "bd2ff242bbff293779b482ed0a90640174560b28783b919e1c90f377ea5edeb0"
     historical = json.loads(service_bytes.decode("utf-8"))
     parsed = describe_read_thread(historical)
     assert parsed is not None
@@ -624,9 +626,9 @@ def test_rf_cx4_real_shape_is_format_compat_and_historical_business_stays_blocke
         "turn_id": ROUND_TURN,
         "message_id": ROUND_MESSAGE,
     }) is None
-    assert parsed["thread_id"] == OWNER_APPOINTMENT_THREAD
-    assert parsed["turn_id"] == "3c9945f6-aece-4a2e-87a0-ed2a11722424"
-    assert parsed["message_id"] == "feee2cda-befb-4183-9e48-9da3fc53130b"
+    assert parsed["thread_id"] == "test-only-thread-0001"
+    assert parsed["turn_id"] == "test-only-turn-0001"
+    assert parsed["message_id"] == "test-only-message-0001"
     assert parsed["text"].encode("utf-8") == message_bytes
     current = json.dumps(_original("PASS")).encode()
     envelope = _run(
@@ -784,8 +786,8 @@ def test_ca02_historical_raw_does_not_require_cross_chat_splice(tmp_path, monkey
     historical = json.loads((fixture / "service-response.exact.nolf").read_text(encoding="utf-8"))
     described = describe_read_thread(historical)
     assert described is not None
-    assert described["turn_id"] == "3c9945f6-aece-4a2e-87a0-ed2a11722424"
-    assert described["message_id"] == "feee2cda-befb-4183-9e48-9da3fc53130b"
+    assert described["turn_id"] == "test-only-turn-0001"
+    assert described["message_id"] == "test-only-message-0001"
     assert parse_authenticated_read_thread(historical, {
         "thread_id": OWNER_APPOINTMENT_THREAD,
         "turn_id": GPT_PRIVATE_TURN,
