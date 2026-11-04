@@ -273,7 +273,12 @@ def _collector_matches(
         return False
     if not isinstance(transfer.get("collected_at"), str) or not transfer["collected_at"]:
         return False
-    if allowlist_sha is None or transfer.get("allowlist_sha256") != allowlist_sha:
+    # Pin, the external allowlist file, and the transfer must be the same digest.
+    if (
+        allowlist_sha is None
+        or pin.get("allowlist_sha256") != allowlist_sha
+        or transfer.get("allowlist_sha256") != allowlist_sha
+    ):
         return False
     if transfer.get("appointment_digest") != pin.get("appointment_original_digest"):
         return False

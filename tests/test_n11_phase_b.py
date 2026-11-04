@@ -9,6 +9,7 @@ from octo.closing import (
     OWNER_APPOINTMENT_THREAD,
     TA_REVIEWER_ID,
     _from_consume,
+    _collector_matches,
     describe_read_thread,
     parse_authenticated_read_thread,
     run_n11,
@@ -849,3 +850,68 @@ def test_registered_round_rereads_control_plane(tmp_path, monkeypatch):
     assert loaded["message_id"] == ROUND_MESSAGE
     for key in ("base_sha", "candidate_sha", "scope_digest", "fixture_digest", "allowlist_sha256"):
         assert loaded[key] == reread[key] == plane[key]
+
+
+ALLOWLIST_PIN_A = "65cd874ef43fdb68b27ccef5e78189c54cde59085e63ce11a7f663ac81571b09"
+ALLOWLIST_RUNTIME_B = "3d6a613b21cab50d1dd609a3a4c899bf8f425a1da089a336a776ed1f950eb539"
+
+
+def test_ca10_allowlist_pin_runtime_and_transfer_must_match(tmp_path, monkeypatch):
+    assert hashlib.sha256(b"allowlist-A-mismatch").hexdigest() == ALLOWLIST_PIN_A
+    assert hashlib.sha256(_allow_bytes()).hexdigest() == ALLOWLIST_RUNTIME_B
+    assert ALLOWLIST_PIN_A != ALLOWLIST_RUNTIME_B
+    runner = _runner()
+    parsed = {
+        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "turn_id": ROUND_TURN,
+        "message_id": ROUND_MESSAGE,
+    }
+    transfer = {
+        "collector_receipt_id": "transfer-1",
+        "collected_at": AT,
+        "allowlist_sha256": ALLOWLIST_RUNTIME_B,
+        "appointment_digest": APPOINTMENT_ORIGINAL,
+        "base_sha": runner["base_sha"],
+        "candidate_sha": runner["candidate_sha"],
+        "scope_digest": runner["scope_digest"],
+        "fixture_digest": runner["fixture_digest"],
+        "raw_sha256": "11" * 32,
+        "service_response_sha256": "22" * 32,
+        "message_sha256": "33" * 32,
+        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "turn_id": ROUND_TURN,
+        "message_id": ROUND_MESSAGE,
+        "role": "agentMessage",
+        "turn_status": "completed",
+    }
+    pin = dict(_control_plane())
+    assert _collector_matches(
+        transfer,
+        actual="11" * 32,
+        service_sha="22" * 32,
+        text_sha="33" * 32,
+        parsed=parsed,
+        allowlist_sha=ALLOWLIST_RUNTIME_B,
+        runner_binding=runner,
+        pin=pin,
+    ) is True
+    pin["allowlist_sha256"] = ALLOWLIST_PIN_A
+    assert _collector_matches(
+        transfer,
+        actual="11" * 32,
+        service_sha="22" * 32,
+        text_sha="33" * 32,
+        parsed=parsed,
+        allowlist_sha=ALLOWLIST_RUNTIME_B,
+        runner_binding=runner,
+        pin=pin,
+    ) is False
+    raw = json.dumps(_original("PASS")).encode()
+    note = _blocked_note(
+        tmp_path,
+        monkeypatch,
+        raw=raw,
+        receipt_id="ca10",
+        plane_overrides={"allowlist_sha256": ALLOWLIST_PIN_A},
+    )
+    assert note == "SOURCE_UNPROVEN"
