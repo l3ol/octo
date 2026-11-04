@@ -218,6 +218,103 @@ def _control_plane() -> dict:
     }
 
 
+_RECEIPT_NAME = "collector-receipt.json"
+
+
+def _plane_outside_candidate(path: Path) -> bool:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    root = CANDIDATE_ROOT.resolve()
+    return resolved != root and root not in resolved.parents
+
+
+def _service_file_bytes(root: Path) -> bytes | None:
+    path = root / "service-response.json"
+    if path.is_symlink() or not path.is_file():
+        return None
+    return path.read_bytes()
+
+
+def _honest_receipt(raw: bytes, service_bytes: bytes, *, service_sha: str | None = None) -> bytes:
+    """Receipt commitments for the reader chain. Not a Writer transfer."""
+    runner = _runner()
+    original = hashlib.sha256(raw).hexdigest()
+    sha = service_sha if service_sha is not None else hashlib.sha256(service_bytes).hexdigest()
+    body = {
+        "allowlist_sha256": hashlib.sha256(_allow_bytes()).hexdigest(),
+        "appointment_original_digest": APPOINTMENT_ORIGINAL,
+        "base_sha": runner["base_sha"],
+        "candidate_sha": runner["candidate_sha"],
+        "collected_at": AT,
+        "fixture_digest": runner["fixture_digest"],
+        "message_id": ROUND_MESSAGE,
+        "message_text_sha256": original,
+        "original_sha256": original,
+        "raw_service_response_sha256": sha,
+        "scope_digest": runner["scope_digest"],
+        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "turn_id": ROUND_TURN,
+    }
+    return json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _apply_reader_pin(
+    plane: dict,
+    raw: bytes,
+    service_bytes: bytes,
+    receipt: bytes,
+    *,
+    service_sha: str | None = None,
+    bind_receipt: bool = True,
+) -> None:
+    original = hashlib.sha256(raw).hexdigest()
+    sha = service_sha if service_sha is not None else hashlib.sha256(service_bytes).hexdigest()
+    plane.setdefault("expected_service_response_sha256", sha)
+    plane.setdefault("raw_service_response_sha256", sha)
+    plane.setdefault("service_response_sha256", sha)
+    if bind_receipt:
+        plane.setdefault("collector_receipt_sha256", hashlib.sha256(receipt).hexdigest())
+    plane.setdefault("expected_original_sha256", original)
+    plane.setdefault("original_sha256", original)
+    plane.setdefault("message_text_sha256", original)
+
+
+def _seal_reader_files(
+    root: Path,
+    raw: bytes,
+    plane: dict,
+    control_path: Path,
+    *,
+    write_receipt: bool = True,
+    omit_pin: tuple[str, ...] = (),
+    receipt_bytes: bytes | None = None,
+    service_sha: str | None = None,
+) -> None:
+    """Write the control-plane pin and, when asked, the receipt original bytes."""
+    if not _plane_outside_candidate(control_path):
+        return
+    stored = _service_file_bytes(root)
+    if stored is not None:
+        honest = _honest_receipt(raw, stored, service_sha=service_sha)
+        if write_receipt:
+            blob = honest if receipt_bytes is None else receipt_bytes
+            (control_path.parent / _RECEIPT_NAME).write_bytes(blob)
+        _apply_reader_pin(
+            plane,
+            raw,
+            stored,
+            honest,
+            service_sha=service_sha,
+            bind_receipt=write_receipt,
+        )
+    for key in omit_pin:
+        plane.pop(key, None)
+    control_path.parent.mkdir(parents=True, exist_ok=True)
+    control_path.write_text(json.dumps(plane), encoding="utf-8")
+
+
 def _run(
     tmp_path: Path,
     monkeypatch,
@@ -232,6 +329,11 @@ def _run(
     plane_overrides: dict | None = None,
     control: bool = True,
     control_path: Path | None = None,
+    write_receipt: bool = True,
+    omit_pin: tuple[str, ...] = (),
+    receipt_bytes: bytes | None = None,
+    service_sha: str | None = None,
+    service_on_control_plane: bool = False,
 ):
     root = tmp_path / "reg"
     _install(
@@ -251,7 +353,34 @@ def _run(
             if plane_overrides:
                 plane.update(plane_overrides)
             control_path = tmp_path / "control-plane.json"
-            control_path.write_text(json.dumps(plane), encoding="utf-8")
+        elif _plane_outside_candidate(control_path):
+            plane = json.loads(control_path.read_text(encoding="utf-8"))
+            if plane_overrides:
+                plane.update(plane_overrides)
+        else:
+            plane = None
+        if plane is not None:
+            _seal_reader_files(
+                root,
+                raw,
+                plane,
+                control_path,
+                write_receipt=write_receipt,
+                omit_pin=omit_pin,
+                receipt_bytes=receipt_bytes,
+                service_sha=service_sha,
+            )
+        if service_on_control_plane and control_path is not None and _plane_outside_candidate(control_path):
+            stored = _service_file_bytes(root)
+            assert stored is not None
+            _unseal(root)
+            (root / "service-response.json").unlink()
+            (control_path.parent / "service-response.json").write_bytes(stored)
+            for path in root.rglob("*"):
+                if path.is_symlink() or path.is_dir():
+                    continue
+                path.chmod(0o444)
+            root.chmod(0o555)
         monkeypatch.setenv(CONTROL_PLANE_ENV, str(control_path))
     else:
         monkeypatch.delenv(CONTROL_PLANE_ENV, raising=False)
@@ -823,7 +952,7 @@ def test_ca07_concurrent_interleaving_consumes_once(tmp_path, monkeypatch):
     _install(root, raw, receipt_id="ca07")
     monkeypatch.setenv("OCTO_TRUST_ALLOWLIST", str(_allow(tmp_path / "allow.json")))
     plane_path = tmp_path / "control-plane.json"
-    plane_path.write_text(json.dumps(_control_plane()), encoding="utf-8")
+    _seal_reader_files(root, raw, _control_plane(), plane_path)
     monkeypatch.setenv(CONTROL_PLANE_ENV, str(plane_path))
     resolved = str(root.resolve())
     _CONSUMED_RECEIPTS.pop(resolved, None)
@@ -1000,3 +1129,240 @@ def test_ca10_allowlist_pin_runtime_and_transfer_must_match(tmp_path, monkeypatc
         plane_overrides={"allowlist_sha256": ALLOWLIST_PIN_A},
     )
     assert note == "SOURCE_UNPROVEN"
+
+
+_ORIGINAL_PIN_KEYS = ("expected_original_sha256", "original_sha256", "message_text_sha256")
+_SERVICE_PIN_KEYS = (
+    "expected_service_response_sha256",
+    "raw_service_response_sha256",
+    "service_response_sha256",
+)
+
+
+def test_nr1_01_pin_missing_collector_receipt_sha256(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    envelope = _run(
+        tmp_path,
+        monkeypatch,
+        raw,
+        receipt_id="nr101",
+        omit_pin=("collector_receipt_sha256",),
+    )
+    assert envelope["status"] == "OK"
+    assert envelope["output"]["verdict"] == "PASS"
+    assert _evidence(envelope)["runtime_pass"] is False
+    loaded = load_control_plane(tmp_path / "control-plane.json")
+    assert loaded is not None
+    assert "collector_receipt_sha256" not in loaded
+    assert loaded["expected_service_response_sha256"]
+
+
+def test_nr1_02_pin_missing_service_response_sha256(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    note = _blocked_note(
+        tmp_path,
+        monkeypatch,
+        raw=raw,
+        receipt_id="nr102",
+        omit_pin=_SERVICE_PIN_KEYS,
+    )
+    assert note == "SOURCE_UNPROVEN"
+    assert load_control_plane(tmp_path / "control-plane.json") is None
+    conflict = dict(_control_plane())
+    conflict.update({
+        "expected_service_response_sha256": "ab" * 32,
+        "raw_service_response_sha256": "ab" * 32,
+        "service_response_sha256": "cd" * 32,
+    })
+    conflict_path = tmp_path / "conflict.json"
+    conflict_path.write_text(json.dumps(conflict), encoding="utf-8")
+    assert load_control_plane(conflict_path) is None
+
+
+def test_nr1_03_original_sha256_is_optional_and_checked_when_present(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    envelope = _run(
+        tmp_path / "absent",
+        monkeypatch,
+        raw,
+        receipt_id="nr103",
+        omit_pin=_ORIGINAL_PIN_KEYS,
+    )
+    assert envelope["status"] == "OK"
+    assert envelope["output"]["verdict"] == "PASS"
+    assert _evidence(envelope)["runtime_pass"] is False
+    loaded = load_control_plane(tmp_path / "absent" / "control-plane.json")
+    assert loaded is not None
+    assert "original_sha256" not in loaded
+    assert "expected_original_sha256" not in loaded
+    wrong = "ab" * 32
+    note = _blocked_note(
+        tmp_path / "present",
+        monkeypatch,
+        raw=raw,
+        receipt_id="nr103-bad",
+        write_receipt=False,
+        plane_overrides={key: wrong for key in _ORIGINAL_PIN_KEYS},
+    )
+    assert note == "SOURCE_UNPROVEN"
+    checked = load_control_plane(tmp_path / "present" / "control-plane.json")
+    assert checked is not None
+    assert checked["expected_original_sha256"] == wrong
+    assert checked["expected_original_sha256"] != hashlib.sha256(raw).hexdigest()
+
+
+def test_nr2_01_pin_commitment_without_receipt_file(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    envelope = _run(
+        tmp_path,
+        monkeypatch,
+        raw,
+        receipt_id="nr201",
+        write_receipt=False,
+        omit_pin=_ORIGINAL_PIN_KEYS,
+    )
+    assert envelope["status"] == "OK"
+    assert envelope["output"]["verdict"] == "PASS"
+    assert _evidence(envelope)["runtime_pass"] is False
+    assert not (tmp_path / _RECEIPT_NAME).exists()
+    loaded = load_control_plane(tmp_path / "control-plane.json")
+    assert loaded is not None
+    assert "collector_receipt_sha256" not in loaded
+    service_bytes = (tmp_path / "reg" / "service-response.json").read_bytes()
+    assert loaded["expected_service_response_sha256"] == hashlib.sha256(service_bytes).hexdigest()
+    assert loaded["thread_id"] == OWNER_APPOINTMENT_THREAD
+    assert loaded["turn_id"] == ROUND_TURN
+    assert loaded["message_id"] == ROUND_MESSAGE
+
+
+def test_nr2_02_collector_receipt_sha_mismatch(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    note = _blocked_note(
+        tmp_path,
+        monkeypatch,
+        raw=raw,
+        receipt_id="nr202",
+        receipt_bytes=b'{"not":"the-collector-receipt"}',
+    )
+    assert note == "SOURCE_UNPROVEN"
+    loaded = load_control_plane(tmp_path / "control-plane.json")
+    assert loaded is not None
+    receipt = (tmp_path / _RECEIPT_NAME).read_bytes()
+    assert hashlib.sha256(receipt).hexdigest() != loaded["collector_receipt_sha256"]
+
+
+def test_nr2_03_writer_transfer_sha_is_not_authority(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    note = _blocked_note(
+        tmp_path / "transfer-only",
+        monkeypatch,
+        raw=raw,
+        receipt_id="nr203",
+        write_receipt=False,
+        omit_pin=_SERVICE_PIN_KEYS,
+    )
+    assert note == "SOURCE_UNPROVEN"
+    assert not (tmp_path / "transfer-only" / _RECEIPT_NAME).exists()
+    transfer = json.loads((tmp_path / "transfer-only" / "reg" / "transfers" / "transfer-1.json").read_text(encoding="utf-8"))
+    service_bytes = (tmp_path / "transfer-only" / "reg" / "service-response.json").read_bytes()
+    assert transfer["raw_sha256"] == hashlib.sha256(raw).hexdigest()
+    assert transfer["service_response_sha256"] == hashlib.sha256(service_bytes).hexdigest()
+    assert transfer["message_sha256"] == hashlib.sha256(raw).hexdigest()
+    assert load_control_plane(tmp_path / "transfer-only" / "control-plane.json") is None
+    anchored = _blocked_note(
+        tmp_path / "bad-anchor",
+        monkeypatch,
+        raw=raw,
+        receipt_id="nr203-anchor",
+        write_receipt=False,
+        service_sha="ab" * 32,
+    )
+    assert anchored == "SOURCE_UNPROVEN"
+    loaded = load_control_plane(tmp_path / "bad-anchor" / "control-plane.json")
+    assert loaded is not None
+    assert loaded["expected_service_response_sha256"] == "ab" * 32
+    mirror = json.loads((tmp_path / "bad-anchor" / "reg" / "transfers" / "transfer-1.json").read_text(encoding="utf-8"))
+    actual = hashlib.sha256((tmp_path / "bad-anchor" / "reg" / "service-response.json").read_bytes()).hexdigest()
+    assert mirror["service_response_sha256"] == actual
+    assert mirror["service_response_sha256"] != loaded["expected_service_response_sha256"]
+
+
+def test_nr2_04_service_bytes_sha_mismatch(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    committed = "ab" * 32
+    note = _blocked_note(
+        tmp_path,
+        monkeypatch,
+        raw=raw,
+        receipt_id="nr204",
+        service_sha=committed,
+    )
+    assert note == "SOURCE_UNPROVEN"
+    loaded = load_control_plane(tmp_path / "control-plane.json")
+    assert loaded is not None
+    assert loaded["raw_service_response_sha256"] == committed
+    receipt = json.loads((tmp_path / _RECEIPT_NAME).read_text(encoding="utf-8"))
+    assert receipt["raw_service_response_sha256"] == committed
+    actual = hashlib.sha256((tmp_path / "reg" / "service-response.json").read_bytes()).hexdigest()
+    assert actual != committed
+
+
+def test_nr2_05_agent_message_text_must_equal_original_bytes(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    note = _blocked_note(
+        tmp_path,
+        monkeypatch,
+        raw=raw,
+        receipt_id="nr205",
+        service=_service(raw, text="different-body"),
+    )
+    assert note == "SOURCE_UNPROVEN"
+    loaded = load_control_plane(tmp_path / "control-plane.json")
+    assert loaded is not None
+    assert loaded["original_sha256"] == loaded["message_text_sha256"] == hashlib.sha256(raw).hexdigest()
+    receipt = json.loads((tmp_path / _RECEIPT_NAME).read_text(encoding="utf-8"))
+    assert receipt["message_text_sha256"] == receipt["original_sha256"] == loaded["original_sha256"]
+
+
+def test_reader_chain_accepts_control_plane_service_copy(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    envelope = _run(
+        tmp_path,
+        monkeypatch,
+        raw,
+        receipt_id="cp-service",
+        service_on_control_plane=True,
+    )
+    assert envelope["status"] == "OK"
+    assert envelope["output"]["verdict"] == "PASS"
+    assert _evidence(envelope)["runtime_pass"] is False
+    assert not (tmp_path / "reg" / "service-response.json").exists()
+    assert (tmp_path / "service-response.json").is_file()
+
+
+def test_reader_chain_accepts_synonym_pin_without_collector_receipt_id(tmp_path, monkeypatch):
+    raw = json.dumps(_original("PASS")).encode()
+    envelope = _run(
+        tmp_path,
+        monkeypatch,
+        raw,
+        receipt_id="synonym",
+        omit_pin=("raw_service_response_sha256", "service_response_sha256", *_ORIGINAL_PIN_KEYS),
+        plane_overrides={"collector_receipt_id": "writer-invented", "registrar_operation_id": "local-track"},
+    )
+    assert envelope["status"] == "OK"
+    assert envelope["output"]["verdict"] == "PASS"
+    assert _evidence(envelope)["runtime_pass"] is False
+    stored = json.loads((tmp_path / "control-plane.json").read_text(encoding="utf-8"))
+    assert "raw_service_response_sha256" not in stored
+    assert "service_response_sha256" not in stored
+    assert "original_sha256" not in stored
+    assert stored["expected_service_response_sha256"]
+    loaded = load_control_plane(tmp_path / "control-plane.json")
+    assert loaded is not None
+    assert "collector_receipt_id" not in loaded
+    assert "registrar_operation_id" not in loaded
+    assert "original_sha256" not in loaded
+    assert loaded["expected_service_response_sha256"] == loaded["service_response_sha256"] == loaded["raw_service_response_sha256"]
+    assert loaded["expected_service_response_sha256"] == stored["expected_service_response_sha256"]
+    assert loaded["collector_receipt_sha256"] == hashlib.sha256((tmp_path / _RECEIPT_NAME).read_bytes()).hexdigest()

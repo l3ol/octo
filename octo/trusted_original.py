@@ -126,6 +126,25 @@ def _is_sha256_hex(value: Any) -> bool:
     return isinstance(value, str) and len(value) == 64 and all(char in _HEX for char in value)
 
 
+def _agreed_nonempty_string(document: Mapping[str, Any], *keys: str) -> str | None:
+    """Shared non-empty string for synonym keys. A present key must agree.
+
+    A missing key is the unused synonym. No usable key, an empty value, or
+    two different values yields None.
+    """
+    found: list[str] = []
+    for key in keys:
+        if key not in document:
+            continue
+        value = document.get(key)
+        if not isinstance(value, str) or not value:
+            return None
+        found.append(value)
+    if not found or any(item != found[0] for item in found):
+        return None
+    return found[0]
+
+
 def normalize_binding(raw: Mapping[str, Any] | BindingTuple | None) -> BindingTuple | None:
     """Five fields, exact after normalization. A short SHA or a missing field is not a tuple."""
     if isinstance(raw, BindingTuple):
@@ -366,7 +385,17 @@ def _read_external_bytes(path: Path) -> bytes | None:
 
 
 def load_control_plane(path: Path | None = None) -> dict[str, str] | None:
-    """Read-only registrar pins. A sha256 of the thread id is not an appointment original."""
+    """Read-only registrar pins. A sha256 of the thread id is not an appointment original.
+
+    The required content anchor is ``expected_service_response_sha256``
+    (synonyms ``service_response_sha256`` and ``raw_service_response_sha256``).
+    ``collector_receipt_sha256`` binds a separate receipt file when that file
+    exists; a missing file is not by itself a failure. ``expected_original_sha256``,
+    ``original_sha256``, and ``message_text_sha256`` are optional and are
+    checked when present. Writer may mint ``registration_id`` or
+    ``registrar_operation_id`` for local tracking only. ``collector_receipt_id``
+    is not a pin and must not be invented.
+    """
     if path is None:
         env = os.environ.get(CONTROL_PLANE_ENV)
         path = Path(env) if env else None
@@ -410,6 +439,30 @@ def load_control_plane(path: Path | None = None) -> dict[str, str] | None:
         if not isinstance(value, str) or not value:
             return None
         pins[key] = value
+    service_sha = _agreed_nonempty_string(
+        document,
+        "expected_service_response_sha256",
+        "raw_service_response_sha256",
+        "service_response_sha256",
+    )
+    if service_sha is None:
+        return None
+    pins["expected_service_response_sha256"] = service_sha
+    pins["raw_service_response_sha256"] = service_sha
+    pins["service_response_sha256"] = service_sha
+    if "collector_receipt_sha256" in document:
+        receipt_sha = _agreed_nonempty_string(document, "collector_receipt_sha256")
+        if receipt_sha is None:
+            return None
+        pins["collector_receipt_sha256"] = receipt_sha
+    original_keys = ("expected_original_sha256", "original_sha256", "message_text_sha256")
+    if any(key in document for key in original_keys):
+        original_sha = _agreed_nonempty_string(document, *original_keys)
+        if original_sha is None:
+            return None
+        pins["expected_original_sha256"] = original_sha
+        pins["original_sha256"] = original_sha
+        pins["message_text_sha256"] = original_sha
     return pins
 
 

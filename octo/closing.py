@@ -5,6 +5,16 @@ Phase A ``TEST_FIXTURE_ONLY`` and ``MECHANISM_ACCEPT`` stay BLOCKED.
 Phase B maps a verdict re-parsed from trusted raw bytes and is not that ceiling.
 Trust comes only from ``consume_trusted_original``.
 A readable file that copies the public reviewer id is not an issuance.
+Phase B follows the protected pin to the service bytes, the pinned
+agentMessage, and the review-receipt bytes. ``expected_service_response_sha256``
+is the pin anchor. A separate collector-receipt file is not required.
+``expected_original_sha256`` is optional and is verified when present.
+Writer may mint ``registration_id`` or ``registrar_operation_id`` only as a
+local tracking number. ``collector_receipt_id`` is copied only when the
+protected collection record already has it; this reader does not invent one.
+A ``transfers/*.json`` file is a mirror and is never the sole authority.
+``thread.id`` with the owner appointment is the session binding. There is
+no separate tool session field.
 
 Spec SPEC-N11-TRUSTED-ORIGINAL-INTERFACE-v1
 sha256 ``c9341bf7b3c149655de865953d03f46c19377e4a796e606590ae590adfc9bebf``.
@@ -34,6 +44,9 @@ from octo.trusted_original import (
     Rejected,
     consume_trusted_original,
     _is_sha256_hex,
+    CONTROL_PLANE_ENV,
+    _agreed_nonempty_string,
+    _read_external_bytes,
     load_control_plane,
     load_trusted_raw,
     migration_claimed,
@@ -44,6 +57,10 @@ from octo.trusted_original import (
     read_stored_json,
     runner_base_sha,
 )
+
+# Control-plane siblings. Not Writer transfer names.
+_COLLECTOR_RECEIPT_NAME = "collector-receipt.json"
+_CONTROL_SERVICE_COPY_NAME = "service-response.json"
 
 N11_KEYS = {"candidate_sha", "scope"}
 N12_KEYS = {"decisions", "evidence", "receipts", "failures"}
@@ -267,8 +284,16 @@ def _collector_matches(
     runner_binding: Mapping[str, Any] | None,
     pin: Mapping[str, str],
 ) -> bool:
-    if not isinstance(transfer.get("collector_receipt_id"), str) or not transfer["collector_receipt_id"]:
-        return False
+    """Cross-check a Writer transfer mirror against pin and actual bytes.
+
+    This is not the source of trust. The pin anchor is
+    expected_service_response_sha256. A transfer or custody hash cannot
+    replace it. collector_receipt_id is not required and is not minted here.
+    """
+    if "collector_receipt_id" in transfer:
+        receipt_id = transfer.get("collector_receipt_id")
+        if not isinstance(receipt_id, str) or not receipt_id:
+            return False
     if not isinstance(transfer.get("collected_at"), str) or not transfer["collected_at"]:
         return False
     # Pin, the external allowlist file, and the transfer must be the same digest.
@@ -301,48 +326,158 @@ def _collector_matches(
     )
 
 
+def _control_plane_file() -> Path | None:
+    env = os.environ.get(CONTROL_PLANE_ENV)
+    if not env:
+        return None
+    return Path(env)
+
+
+def _read_control_plane_sibling(name: str) -> bytes | None:
+    """Original bytes beside the control plane. Not a Writer ``transfers/`` file."""
+    path = _control_plane_file()
+    if path is None or not name or any(part in {"", ".", ".."} for part in Path(name).parts):
+        return None
+    return _read_external_bytes(path.parent / name)
+
+
+def _receipt_matches_pin(
+    receipt: Mapping[str, Any],
+    pin: Mapping[str, str],
+    runner_binding: Mapping[str, Any] | None,
+) -> bool:
+    """Receipt commitments must agree with the pin tuple, allowlist, and appointment."""
+    service = _agreed_nonempty_string(
+        receipt,
+        "expected_service_response_sha256",
+        "raw_service_response_sha256",
+        "service_response_sha256",
+    )
+    if service is None or service != pin.get("expected_service_response_sha256"):
+        return False
+    for key in ("thread_id", "turn_id", "message_id"):
+        if receipt.get(key) != pin.get(key) or not isinstance(pin.get(key), str) or not pin.get(key):
+            return False
+    original_keys = ("expected_original_sha256", "original_sha256", "message_text_sha256")
+    if any(key in receipt for key in original_keys):
+        text = _agreed_nonempty_string(receipt, *original_keys)
+        if text is None:
+            return False
+        if "original_sha256" in pin and text != pin.get("original_sha256"):
+            return False
+    appointment = _agreed_nonempty_string(receipt, "appointment_original_digest", "appointment_digest")
+    if not _is_sha256_hex(appointment) or appointment != pin.get("appointment_original_digest"):
+        return False
+    collected_at = receipt.get("collected_at")
+    if not isinstance(collected_at, str) or not collected_at:
+        return False
+    allowlist = receipt.get("allowlist_sha256")
+    runtime_allowlist = _allowlist_digest()
+    if (
+        not isinstance(allowlist, str)
+        or not allowlist
+        or allowlist != pin.get("allowlist_sha256")
+        or allowlist != runtime_allowlist
+    ):
+        return False
+    if not isinstance(runner_binding, Mapping):
+        return False
+    for key in ("base_sha", "candidate_sha", "scope_digest", "fixture_digest"):
+        if receipt.get(key) != pin.get(key) or receipt.get(key) != runner_binding.get(key):
+            return False
+    return True
+
+
 def _phase_b_source_authentic(
     registry_view: ReadOnlyRegistry,
     record: Mapping[str, Any],
     raw: bytes,
     runner_binding: Mapping[str, Any] | None,
 ) -> bool:
-    """Stored read_thread return plus transfer and custody. Projection fields are not proof."""
-    actual = hashlib.sha256(raw).hexdigest()
-    custody = read_stored_json(registry_view, record.get("custody_ref"))
-    if not isinstance(custody, dict) or custody.get("not_issuer") is not True or custody.get("raw_sha256") != actual:
+    """Reader chain from the protected pin to the review-receipt bytes.
+
+    Order: pin, service-response original bytes, pinned completed turn,
+    pinned agentMessage text, review-receipt original bytes. A separate
+    collector-receipt file is checked only when the pin carries
+    collector_receipt_sha256. expected_original_sha256 is optional.
+    A Writer transfer or custody hash is an in-chain mirror, not the anchor.
+    thread.id on this pin, with the owner appointment, is the session binding.
+    """
+    pin = load_control_plane()
+    if pin is None or pin.get("thread_id") != OWNER_APPOINTMENT_THREAD:
         return False
-    if custody.get("issuer") or custody.get("verdict") or custody.get("signed_by"):
-        return False
-    evidence = record.get("source_evidence") if isinstance(record.get("source_evidence"), dict) else {}
-    transfer_id = evidence.get("transfer_receipt_id")
-    if not isinstance(transfer_id, str) or not transfer_id or any(part in {"", ".", ".."} for part in Path(transfer_id).parts):
-        return False
+    receipt = None
+    receipt_sha = pin.get("collector_receipt_sha256")
+    if isinstance(receipt_sha, str) and receipt_sha:
+        receipt_bytes = _read_control_plane_sibling(_COLLECTOR_RECEIPT_NAME)
+        if receipt_bytes is None:
+            return False
+        if hashlib.sha256(receipt_bytes).hexdigest() != receipt_sha:
+            return False
+        try:
+            parsed_receipt = json.loads(receipt_bytes.decode("utf-8"))
+        except (UnicodeError, json.JSONDecodeError):
+            return False
+        if not isinstance(parsed_receipt, dict) or not _receipt_matches_pin(parsed_receipt, pin, runner_binding):
+            return False
+        receipt = parsed_receipt
     service_bytes = read_stored_bytes(registry_view, record.get("service_response_ref"))
     if service_bytes is None:
+        service_bytes = _read_control_plane_sibling(_CONTROL_SERVICE_COPY_NAME)
+    if service_bytes is None:
         return False
+    service_sha = hashlib.sha256(service_bytes).hexdigest()
+    if service_sha != pin.get("expected_service_response_sha256"):
+        return False
+    if receipt is not None:
+        receipt_service = _agreed_nonempty_string(
+            receipt,
+            "expected_service_response_sha256",
+            "raw_service_response_sha256",
+            "service_response_sha256",
+        )
+        if service_sha != receipt_service:
+            return False
     try:
         service = json.loads(service_bytes.decode("utf-8"))
     except (UnicodeError, json.JSONDecodeError):
         return False
     if not isinstance(service, dict):
         return False
-    pin = load_control_plane()
-    if pin is None or pin.get("thread_id") != OWNER_APPOINTMENT_THREAD:
+    actual = hashlib.sha256(raw).hexdigest()
+    custody = read_stored_json(registry_view, record.get("custody_ref"))
+    if not isinstance(custody, dict) or custody.get("not_issuer") is not True or custody.get("raw_sha256") != actual:
+        return False
+    if custody.get("issuer") or custody.get("verdict") or custody.get("signed_by"):
+        return False
+    if record.get("bytes_sha256") != actual:
         return False
     parsed = parse_authenticated_read_thread(service, pin)
     if parsed is None or not _message_matches_original(parsed["text"], raw):
         return False
+    text_sha = hashlib.sha256(parsed["text"].encode("utf-8")).hexdigest()
+    if text_sha != actual:
+        return False
+    if "original_sha256" in pin and text_sha != pin.get("original_sha256"):
+        return False
+    if receipt is not None:
+        original_keys = ("expected_original_sha256", "original_sha256", "message_text_sha256")
+        if any(key in receipt for key in original_keys):
+            receipt_text = _agreed_nonempty_string(receipt, *original_keys)
+            if text_sha != receipt_text:
+                return False
     claimed = service.get("message_sha256")
     if isinstance(claimed, str) and claimed != actual:
         return False
-    if record.get("bytes_sha256") != actual:
+    evidence = record.get("source_evidence") if isinstance(record.get("source_evidence"), dict) else {}
+    transfer_id = evidence.get("transfer_receipt_id")
+    if not isinstance(transfer_id, str) or not transfer_id or any(part in {"", ".", ".."} for part in Path(transfer_id).parts):
         return False
     transfer = read_stored_json(registry_view, f"transfers/{transfer_id}.json")
+    if transfer is None:
+        return False
     if not isinstance(transfer, dict) or _FAKE_SERVER_IDS.intersection(transfer):
         return False
-    service_sha = hashlib.sha256(service_bytes).hexdigest()
-    text_sha = hashlib.sha256(parsed["text"].encode("utf-8")).hexdigest()
     return _collector_matches(
         transfer,
         actual=actual,
