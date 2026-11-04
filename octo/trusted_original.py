@@ -528,8 +528,8 @@ def _review_decision(
     seen = _CONSUMED_RECEIPTS.setdefault(str(registry_view.root), set())
     if receipt_id in seen:
         return Rejected("EVIDENCE_UNVERIFIED")
-    seen.add(receipt_id)
     verified = _gap03_readonly(registry_view.root, record, actual)
     if verified is not True:
         return Rejected("EVIDENCE_UNVERIFIED", "GAP-03")
+    seen.add(receipt_id)
     return Found(record=dict(record), test_only=False, mechanism_accept=True)

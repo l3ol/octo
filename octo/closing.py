@@ -145,7 +145,7 @@ def _judge_receipt(
     candidate: str,
     scope: Any,
     *,
-    binding: BindingTuple | None,
+    binding: BindingTuple | Mapping[str, Any] | None,
     registry_view: ReadOnlyRegistry | None,
     fixture_hashes: set[str],
     registry_empty: Empty | None = None,
@@ -169,33 +169,32 @@ def _judge_receipt(
         _load_receipt_file(receipt.get("path"))
     if registry_empty is not None:
         return _from_consume(registry_empty, scope)
-    result = consume_trusted_original(binding, registry_view, fixture_hashes)
-    if not isinstance(result, Found):
-        return _from_consume(result, scope)
-    verified = _verified_original(
-        None,
-        candidate,
+    return _from_consume(
+        consume_trusted_original(binding, registry_view, fixture_hashes),
         scope,
-        binding=binding,
-        registry_view=registry_view,
-        fixture_hashes=fixture_hashes,
     )
-    if verified is None:
-        return _blocked(scope, "no trusted reviewer registration")
-    return _from_consume(verified, scope)
 
 
-def _runner_binding(inputs: Mapping[str, Any], fixture_digest: str | None) -> BindingTuple | None:
+def _runner_binding(inputs: Mapping[str, Any], fixture_digest: str | None) -> dict[str, str] | None:
+    """Five-field tuple plus the recorded task and rule_version. Not a new envelope key."""
     scope = inputs.get("scope") if isinstance(inputs.get("scope"), dict) else {}
-    route = scope.get("route") if isinstance(scope, dict) else None
+    route = scope.get("route")
     chosen = fixture_digest if fixture_digest is not None else os.environ.get(FIXTURE_DIGEST_ENV)
-    return normalize_binding({
+    normalized = normalize_binding({
         "route": route,
         "scope_digest": product_scope_digest(),
         "base_sha": runner_base_sha() or "",
         "candidate_sha": inputs.get("candidate_sha"),
         "fixture_digest": chosen or "",
     })
+    if normalized is None:
+        return None
+    raw = normalized.as_dict()
+    for key in ("task", "rule_version"):
+        value = scope.get(key)
+        if isinstance(value, str) and value.strip():
+            raw[key] = value.strip()
+    return raw
 
 
 def run_n11(
