@@ -1,0 +1,45 @@
+{
+  "as_pid_1": true,
+  "dev": "bwrap --dev + --remount-ro /dev",
+  "die_with_parent": true,
+  "final_sha": false,
+  "freeze_status": "NONFINAL_HOLD_AE",
+  "full_sandbox": false,
+  "kind": "isolation_policy",
+  "limits": [
+    "Inherited file descriptors bypass the network namespace unless the runner sets close_fds and pass_fds empty.",
+    "The only ordinary writable bind is /iso. /dev device nodes may be rw; ordinary files on /dev are not a writable store.",
+    "seccomp was not applied. This is not a complete sandbox and is not a PASS-with-caveat."
+  ],
+  "new_session": true,
+  "no_install": true,
+  "no_privilege_expansion": true,
+  "no_sudo": true,
+  "ops_evidence": {
+    "harden_json_sha256": "8bd5c4a1e9e3d922c3e5b7ab4f8f269a0ec45bd6fde5bec9285bcd4ff601028c",
+    "harden_md_sha256": "36e197c205581fe9245272975cb2d6808e2579530e6725e8cefee7f436a1a2b1",
+    "intake_sha256": "fdd32d46013f6ccc6fdee391ca5daa7f337337e772fcecd468baba9073876e4b"
+  },
+  "proc": "fresh in pidns",
+  "readiness": "HARDENED_RECIPE_ACHIEVED_RUNNER_CONTRACT_DEPENDENT",
+  "recipe": "bwrap --die-with-parent --new-session --unshare-net --unshare-pid --as-pid-1 --ro-bind /usr /usr --symlink usr/lib /lib --symlink usr/lib64 /lib64 --symlink usr/bin /bin --ro-bind /etc /etc --proc /proc --dev /dev --remount-ro /dev --bind <OUT>/iso /iso --setenv TMPDIR /iso/tmp --remount-ro / --chdir /iso -- <cmd>",
+  "require_fd_audit_inside": true,
+  "reviewer_pass": false,
+  "ro_binds": [
+    "/usr",
+    "/etc"
+  ],
+  "root": "tmpfs ro",
+  "runner_close_fds": true,
+  "runner_pass_fds": [],
+  "runner_stdin": "devnull",
+  "runtime_pass": false,
+  "tmpdir": "/iso/tmp",
+  "unshare": [
+    "net",
+    "pid"
+  ],
+  "writable_binds": [
+    "/iso"
+  ]
+}

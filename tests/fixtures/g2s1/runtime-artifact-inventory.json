@@ -1,0 +1,13 @@
+{
+  "committed": false,
+  "entries": [
+    {"issued_via": "TEST_FIXTURE", "name": "grant", "test_only": true},
+    {"name": "request", "test_only": true},
+    {"name": "receipt", "test_only": true},
+    {"name": "log", "test_only": true}
+  ],
+  "acceptance_input": false,
+  "kind": "runtime_artifact_inventory_schema",
+  "location": "external_isolation_store",
+  "note": "Documentation of required external item kinds only. Not an acceptance input. An external inventory must name real files with byte length and content sha. This schema has neither."
+}

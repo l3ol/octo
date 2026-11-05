@@ -1,0 +1,12 @@
+```json
+{
+  "kind": "TEST_FIXTURE",
+  "test_only": true,
+  "verdict": "BLOCKED",
+  "runtime_pass": false,
+  "binding_tuple": {
+    "route": "internal_readonly",
+    "candidate_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}
+```

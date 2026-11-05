@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "octo/node-envelope.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["node_id", "at", "inputs", "inputs_hash", "status", "output"],
+  "properties": {
+    "node_id": {
+      "enum": ["N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9", "N10", "N11", "N12", "N13"]
+    },
+    "at": {"type": "string", "format": "date-time"},
+    "inputs": {"type": "object"},
+    "inputs_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "status": {
+      "enum": [
+        "OK",
+        "PARTIAL",
+        "NEEDS_CLARIFICATION",
+        "BLOCKED",
+        "AUTHORIZATION_REQUIRED",
+        "SOURCE_UNAVAILABLE",
+        "NOT_RUN_THIS_STAGE"
+      ]
+    },
+    "output": {"type": ["object", "null"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "NOT_RUN_THIS_STAGE"}}},
+      "then": {
+        "properties": {
+          "node_id": {"enum": ["N6", "N7"]},
+          "output": {"type": "null"}
+        }
+      }
+    }
+  ]
+}

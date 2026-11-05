@@ -1,0 +1,16 @@
+{
+  "kind": "grant_template",
+  "test_only": true,
+  "issued_via": "TEST_FIXTURE",
+  "action_type": "internal_readonly",
+  "actions": ["internal_readonly"],
+  "amount_limit": 0,
+  "subject": "<actor>",
+  "resources": ["<isolation-resource-id>"],
+  "git_candidate_sha": "<git-candidate-sha-40hex>",
+  "tree_sha": "<tree-sha-40hex>",
+  "request_digest": "<request-digest-64hex>",
+  "extension_reason": "",
+  "revoked": false,
+  "note": "Static template only. Not an issued Grant and not bound to a candidate SHA."
+}
