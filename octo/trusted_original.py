@@ -41,14 +41,12 @@ from octo.g3_review import product_scope_digest
 from octo.objects import digest
 from octo.scope_metadata import FORMAL_REVIEWER_ID, HISTORICAL_AGENT_ID
 
-# Current formal reviewer, same id as SCOPE-MANIFEST / handoff.
-# HISTORICAL_AGENT_ID is a sidenote and a migration detector. It is not an
-# acceptance identity. This module does not sign for it and does not claim
-# that its signatures moved.
+# Historical ids. They are not the acceptance identity. The current issuer
+# comes from current_appointment(). This module does not sign for the
+# historical agent and does not claim that its signatures moved.
 TA_REVIEWER_ID = FORMAL_REVIEWER_ID
 ORIGINAL_AGENT_ID = FORMAL_REVIEWER_ID
 ORIGINAL_REVIEWER_SESSION_ID = "6ae6216e-bbec-83e8-87dc-c3edd9027bcc"
-ORIGINAL_SESSION_ID = ORIGINAL_REVIEWER_SESSION_ID
 REGISTRY_ENV = "OCTO_TRUSTED_ORIGINAL_ROOT"
 ALLOWLIST_ENV = "OCTO_TRUST_ALLOWLIST"
 CONTROL_PLANE_ENV = "OCTO_CONTROL_PLANE"
@@ -64,8 +62,8 @@ OPS_CONTROL_PLANE_SHA256 = {
 }
 _CONSUME_LOCK = threading.Lock()
 FIXTURE_DIGEST_ENV = "OCTO_FIXTURE_DIGEST"
-# Expected config value for the external issuer allowlist. Not an acceptance fallback.
-DEFAULT_EXPECTED_ISSUER = TA_REVIEWER_ID
+# Historical label only. Not an acceptance fallback and not a const swap.
+DEFAULT_EXPECTED_ISSUER = FORMAL_REVIEWER_ID
 ALLOWLIST_RUN_LOG: list[dict[str, str]] = []
 _CONSUMED_RECEIPTS: dict[str, set[str]] = {}
 CANDIDATE_ROOT = Path(__file__).resolve().parents[1]
@@ -636,6 +634,87 @@ def load_allowlists(path: Path | None = None) -> tuple[dict[str, list[str]], str
     return {"issuer_allowlist": issuers, "source_allowlist": sources}, sha
 
 
+_APPOINTMENT_ORIGINAL_NAME = "appointment-original.bin"
+
+
+def _nonempty_str(value: Any) -> str | None:
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
+def _str_list(value: Any) -> list[str] | None:
+    if not isinstance(value, list) or not value:
+        return None
+    if not all(isinstance(item, str) and item for item in value):
+        return None
+    return list(value)
+
+
+def current_appointment() -> dict[str, Any] | None:
+    """Read the Ops-protected appointment pin. Callers cannot select the path.
+
+    Missing pin, fields, or appointment bytes fail closed. The returned
+    ``appointment_raw_sha256`` is sha256 of those protected bytes.
+    """
+    env = os.environ.get(CONTROL_PLANE_ENV)
+    if not env:
+        return None
+    path = Path(env)
+    raw = _read_external_bytes(path)
+    if raw is None:
+        return None
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(document, dict):
+        return None
+    if document.get("kind") != "REGISTRAR_RELAY" or document.get("not_issuer") is not True:
+        return None
+    if document.get("current_reviewer_conclusion") is not True:
+        return None
+    if document.get("synthetic") is True or document.get("fixture_class") in {"TEST_ONLY", "TEST_FIXTURE"}:
+        return None
+    issuer_id = _nonempty_str(document.get("issuer_id"))
+    session_id = _nonempty_str(document.get("issuer_session_id"))
+    thread_id = _nonempty_str(document.get("thread_id"))
+    turn_id = _nonempty_str(document.get("turn_id"))
+    message_id = _nonempty_str(document.get("message_id"))
+    issuers = _str_list(document.get("issuer_allowlist"))
+    sources = _str_list(document.get("source_allowlist"))
+    if None in (issuer_id, session_id, thread_id, turn_id, message_id, issuers, sources):
+        return None
+    assert issuer_id is not None and session_id is not None and thread_id is not None
+    assert turn_id is not None and message_id is not None and issuers is not None and sources is not None
+    if issuer_id not in issuers or session_id not in sources:
+        return None
+    original = _read_external_bytes(path.parent / _APPOINTMENT_ORIGINAL_NAME)
+    if original is None:
+        return None
+    recomputed = hashlib.sha256(original).hexdigest()
+    if recomputed == hashlib.sha256(thread_id.encode("utf-8")).hexdigest():
+        return None
+    claimed_raw = document.get("appointment_raw_sha256")
+    claimed_digest = document.get("appointment_original_digest")
+    if claimed_raw is None and claimed_digest is None:
+        return None
+    if claimed_raw is not None and claimed_raw != recomputed:
+        return None
+    if claimed_digest is not None and claimed_digest != recomputed:
+        return None
+    return {
+        "issuer_id": issuer_id,
+        "issuer_session_id": session_id,
+        "thread_id": thread_id,
+        "appointment_raw_sha256": recomputed,
+        "turn_id": turn_id,
+        "message_id": message_id,
+        "issuer_allowlist": issuers,
+        "source_allowlist": sources,
+    }
+
+
 def migration_claimed(record: Mapping[str, Any]) -> bool:
     """A claim that an old signature moved, or that this code signed for that agent."""
     blobs: list[Mapping[str, Any]] = [record]
@@ -668,8 +747,20 @@ def _review_allowlist(record: Mapping[str, Any], allowlists: Mapping[str, list[s
         return "ISSUER_SESSION_COLLISION"
     if issuer == HISTORICAL_AGENT_ID or agent == HISTORICAL_AGENT_ID:
         return "ISSUER_MISMATCH"
-    if issuer != TA_REVIEWER_ID or (isinstance(agent, str) and agent != TA_REVIEWER_ID):
+    if issuer in {"TB", "BUILDER", "DEVSPACE_VERIFIER"} or agent in {"TB", "BUILDER", "DEVSPACE_VERIFIER"}:
         return "ISSUER_MISMATCH"
+    appointment = current_appointment()
+    if appointment is None:
+        return "EVIDENCE_UNVERIFIED"
+    if issuer != appointment["issuer_id"] or issuer not in appointment["issuer_allowlist"]:
+        return "ISSUER_MISMATCH"
+    if isinstance(agent, str) and (agent != appointment["issuer_id"] or agent not in appointment["issuer_allowlist"]):
+        return "ISSUER_MISMATCH"
+    if session != appointment["issuer_session_id"] or session not in appointment["source_allowlist"]:
+        return "ISSUER_MISMATCH"
+    thread_id = evidence.get("thread_id")
+    if isinstance(thread_id, str) and thread_id != appointment["thread_id"]:
+        return "THREAD_MISMATCH"
     issuers = set(allowlists.get("issuer_allowlist") or [])
     sources = set(allowlists.get("source_allowlist") or [])
     if issuer not in issuers:
@@ -677,8 +768,6 @@ def _review_allowlist(record: Mapping[str, Any], allowlists: Mapping[str, list[s
     if isinstance(agent, str) and agent not in issuers:
         return "ISSUER_MISMATCH"
     if session not in sources:
-        return "ISSUER_MISMATCH"
-    if issuer in {"TB", "BUILDER", "DEVSPACE_VERIFIER"}:
         return "ISSUER_MISMATCH"
     return None
 
@@ -724,11 +813,18 @@ def _evidence_ok(record: Mapping[str, Any]) -> str | None:
         return "EVIDENCE_UNVERIFIED"
     if not isinstance(issuer, str) or not isinstance(agent, str) or not isinstance(session, str):
         return "EVIDENCE_UNVERIFIED"
-    if issuer != ORIGINAL_AGENT_ID or agent != ORIGINAL_AGENT_ID:
+    if issuer in {"TB", "BUILDER", "DEVSPACE_VERIFIER"} or agent in {"TB", "BUILDER", "DEVSPACE_VERIFIER"}:
         return "ISSUER_MISMATCH"
-    if session == issuer or session == TA_REVIEWER_ID or session == HISTORICAL_AGENT_ID or session.startswith("agt_"):
+    appointment = current_appointment()
+    if appointment is None:
+        return "EVIDENCE_UNVERIFIED"
+    if issuer != appointment["issuer_id"] or agent != appointment["issuer_id"]:
+        return "ISSUER_MISMATCH"
+    if issuer not in appointment["issuer_allowlist"] or agent not in appointment["issuer_allowlist"]:
+        return "ISSUER_MISMATCH"
+    if session == issuer or session == HISTORICAL_AGENT_ID or session.startswith("agt_"):
         return "ISSUER_SESSION_COLLISION"
-    if session != ORIGINAL_SESSION_ID:
+    if session != appointment["issuer_session_id"] or session not in appointment["source_allowlist"]:
         return "ISSUER_MISMATCH"
     return None
 

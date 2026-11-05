@@ -35,7 +35,6 @@ from octo.grant import safe_path, write_once
 from octo.nodes import emit_envelope
 from octo.objects import canonical
 from octo.trusted_original import (
-    TA_REVIEWER_ID,
     FIXTURE_DIGEST_ENV,
     BindingTuple,
     ConsumeResult,
@@ -48,6 +47,7 @@ from octo.trusted_original import (
     CONTROL_PLANE_ENV,
     _agreed_nonempty_string,
     _read_external_bytes,
+    current_appointment,
     load_control_plane,
     load_trusted_raw,
     migration_claimed,
@@ -57,6 +57,7 @@ from octo.trusted_original import (
     read_stored_bytes,
     read_stored_json,
     runner_base_sha,
+    TA_REVIEWER_ID,
 )
 
 # Control-plane siblings. Not Writer transfer names.
@@ -169,7 +170,6 @@ def _from_consume(result: ConsumeResult, scope: Any) -> tuple[dict, str]:
 
 _PHASE_B_MARKS = frozenset({"verdict", "binding_tuple", "source_authenticity"})
 _PHASE_B_VERDICTS = frozenset({"PASS", "REVISE", "BLOCKED", "FAIL"})
-OWNER_APPOINTMENT_THREAD = "6ae7886b-23c8-83e8-a136-f1b52b33d01f"
 _FAKE_SERVER_IDS = frozenset({"server_call_id", "server_native_id", "tool_call_id"})
 
 
@@ -411,10 +411,17 @@ def _phase_b_source_authentic(
     collector-receipt file is checked only when the pin carries
     collector_receipt_sha256. expected_original_sha256 is optional.
     A Writer transfer or custody hash is an in-chain mirror, not the anchor.
-    thread.id on this pin, with the owner appointment, is the session binding.
+    thread.id comes from the protected appointment, not a hard-coded owner id.
     """
+    appointment = current_appointment()
     pin = load_control_plane()
-    if pin is None or pin.get("thread_id") != OWNER_APPOINTMENT_THREAD:
+    if appointment is None or pin is None:
+        return False
+    if pin.get("thread_id") != appointment["thread_id"]:
+        return False
+    if pin.get("turn_id") != appointment["turn_id"] or pin.get("message_id") != appointment["message_id"]:
+        return False
+    if pin.get("appointment_original_digest") != appointment["appointment_raw_sha256"]:
         return False
     receipt = None
     receipt_sha = pin.get("collector_receipt_sha256")
@@ -589,7 +596,8 @@ def _judge_receipt(
         if migration_claimed(receipt):
             return _blocked(scope, "SIGNATURE_MIGRATION_CLAIM")
         issuer = receipt.get("issuer") or receipt.get("reviewer")
-        if isinstance(issuer, str) and issuer != TA_REVIEWER_ID:
+        appointment = current_appointment()
+        if isinstance(issuer, str) and (appointment is None or issuer != appointment["issuer_id"]):
             return _blocked(scope, "forged issuer")
         presented = receipt.get("candidate_sha")
         if isinstance(presented, str) and presented != candidate:

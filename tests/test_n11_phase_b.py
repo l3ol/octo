@@ -6,7 +6,6 @@ from pathlib import Path
 import threading
 
 from octo.closing import (
-    OWNER_APPOINTMENT_THREAD,
     TA_REVIEWER_ID,
     _from_consume,
     _collector_matches,
@@ -25,6 +24,8 @@ from octo.trusted_original import (
 )
 
 AT = "2026-11-01T12:00:00+00:00"
+# Harness thread string. Product code does not treat this as the only owner id.
+HARNESS_THREAD = "6ae7886b-23c8-83e8-a136-f1b52b33d01f"
 CANDIDATE = "c" * 40
 FIXTURE = "d" * 64
 ROUTE = "internal_readonly"
@@ -67,7 +68,7 @@ def _service(raw: bytes, **overrides) -> dict:
         item.pop("text", None)
     body = {
         "schemaVersion": 1,
-        "thread": {"id": overrides.pop("thread_id", OWNER_APPOINTMENT_THREAD)},
+        "thread": {"id": overrides.pop("thread_id", HARNESS_THREAD)},
         "turns": [{
             "id": overrides.pop("turn_id", ROUND_TURN),
             "status": overrides.pop("status", "completed"),
@@ -82,7 +83,7 @@ def _service(raw: bytes, **overrides) -> dict:
 
 def _projection(raw: bytes, **overrides) -> dict:
     body = {
-        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "thread_id": HARNESS_THREAD,
         "turn": {"status": "completed"},
         "agentMessage": {"type": "text", "text": raw.decode("utf-8")},
         "message_sha256": hashlib.sha256(raw).hexdigest(),
@@ -206,7 +207,7 @@ def _control_plane() -> dict:
         "kind": "REGISTRAR_RELAY",
         "not_issuer": True,
         "current_reviewer_conclusion": True,
-        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "thread_id": HARNESS_THREAD,
         "turn_id": ROUND_TURN,
         "message_id": ROUND_MESSAGE,
         "appointment_original_digest": APPOINTMENT_ORIGINAL,
@@ -217,6 +218,10 @@ def _control_plane() -> dict:
         "allowlist_sha256": hashlib.sha256(_allow_bytes()).hexdigest(),
         "collection_source": "read_thread",
         "collected_at": AT,
+        "issuer_id": TA_REVIEWER_ID,
+        "issuer_session_id": ORIGINAL_REVIEWER_SESSION_ID,
+        "issuer_allowlist": [TA_REVIEWER_ID],
+        "source_allowlist": [ORIGINAL_REVIEWER_SESSION_ID],
     }
 
 
@@ -256,7 +261,7 @@ def _honest_receipt(raw: bytes, service_bytes: bytes, *, service_sha: str | None
         "original_sha256": original,
         "raw_service_response_sha256": sha,
         "scope_digest": runner["scope_digest"],
-        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "thread_id": HARNESS_THREAD,
         "turn_id": ROUND_TURN,
     }
     return json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -316,6 +321,7 @@ def _seal_reader_files(
     for key in omit_pin:
         plane.pop(key, None)
     control_path.parent.mkdir(parents=True, exist_ok=True)
+    (control_path.parent / "appointment-original.bin").write_bytes(b"registrar-appointment-original-v1")
     control_path.write_text(json.dumps(plane), encoding="utf-8")
 
 
@@ -527,7 +533,7 @@ def test_cx1_fake_endorsement_without_ro_proof_is_blocked(tmp_path, monkeypatch)
     raw = json.dumps(_original("PASS", source_authenticity={
         "kind": "read_thread",
         "endorsed": True,
-        "appointment_session": OWNER_APPOINTMENT_THREAD,
+        "appointment_session": HARNESS_THREAD,
         "reviewer_id": TA_REVIEWER_ID,
     })).encode()
     envelope = _run(tmp_path, monkeypatch, raw, receipt_id="cx1", proof=False)
@@ -622,7 +628,7 @@ def test_rf_cx4_real_shape_is_format_compat_and_historical_business_stays_blocke
     parsed = describe_read_thread(historical)
     assert parsed is not None
     assert parse_authenticated_read_thread(historical, {
-        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "thread_id": HARNESS_THREAD,
         "turn_id": ROUND_TURN,
         "message_id": ROUND_MESSAGE,
     }) is None
@@ -789,7 +795,7 @@ def test_ca02_historical_raw_does_not_require_cross_chat_splice(tmp_path, monkey
     assert described["turn_id"] == "test-only-turn-0001"
     assert described["message_id"] == "test-only-message-0001"
     assert parse_authenticated_read_thread(historical, {
-        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "thread_id": HARNESS_THREAD,
         "turn_id": GPT_PRIVATE_TURN,
         "message_id": GPT_PRIVATE_MESSAGE,
     }) is None
@@ -802,7 +808,7 @@ def test_ca03_thread_id_hash_is_not_an_appointment_original(tmp_path, monkeypatc
     trusted = (CANDIDATE_ROOT / "octo" / "trusted_original.py").read_text(encoding="utf-8")
     assert "APPOINTMENT_DIGEST" not in source
     assert "APPOINTMENT_DIGEST" not in trusted
-    fake = hashlib.sha256(OWNER_APPOINTMENT_THREAD.encode("utf-8")).hexdigest()
+    fake = hashlib.sha256(HARNESS_THREAD.encode("utf-8")).hexdigest()
     assert fake != APPOINTMENT_ORIGINAL
     raw = json.dumps(_original("PASS")).encode()
     note = _blocked_note(
@@ -813,7 +819,7 @@ def test_ca03_thread_id_hash_is_not_an_appointment_original(tmp_path, monkeypatc
         plane_overrides={"appointment_original_digest": fake},
         transfer_overrides={"appointment_digest": fake},
     )
-    assert note == "SOURCE_UNPROVEN"
+    assert note == "EVIDENCE_UNVERIFIED"
     assert load_control_plane(tmp_path / "control-plane.json") is None
 
 
@@ -821,7 +827,7 @@ def test_ca03_appointment_digest_must_be_sha256_hex(tmp_path, monkeypatch):
     raw = json.dumps(_original("PASS")).encode()
     runner = _runner()
     parsed = {
-        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "thread_id": HARNESS_THREAD,
         "turn_id": ROUND_TURN,
         "message_id": ROUND_MESSAGE,
     }
@@ -837,7 +843,7 @@ def test_ca03_appointment_digest_must_be_sha256_hex(tmp_path, monkeypatch):
         "raw_sha256": "11" * 32,
         "service_response_sha256": "22" * 32,
         "message_sha256": "33" * 32,
-        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "thread_id": HARNESS_THREAD,
         "turn_id": ROUND_TURN,
         "message_id": ROUND_MESSAGE,
         "role": "agentMessage",
@@ -873,7 +879,7 @@ def test_ca03_appointment_digest_must_be_sha256_hex(tmp_path, monkeypatch):
             plane_overrides={"appointment_original_digest": value},
             transfer_overrides={"appointment_digest": value},
         )
-        assert note == "SOURCE_UNPROVEN"
+        assert note == "EVIDENCE_UNVERIFIED"
         assert load_control_plane(tmp_path / name / "control-plane.json") is None
         transfer_only = _blocked_note(
             tmp_path / f"xfer-{name}",
@@ -898,13 +904,13 @@ def test_ca03_appointment_digest_must_be_sha256_hex(tmp_path, monkeypatch):
         receipt_id="ca03-missing",
         control_path=missing_path,
     )
-    assert missing_note == "SOURCE_UNPROVEN"
+    assert missing_note == "EVIDENCE_UNVERIFIED"
     assert load_control_plane(missing_path) is None
 
 
 def test_ca04_self_selected_pins_are_not_the_control_plane(tmp_path, monkeypatch):
     raw = json.dumps(_original("PASS")).encode()
-    assert _blocked_note(tmp_path / "missing", monkeypatch, raw=raw, receipt_id="ca04-missing", control=False) == "SOURCE_UNPROVEN"
+    assert _blocked_note(tmp_path / "missing", monkeypatch, raw=raw, receipt_id="ca04-missing", control=False) == "EVIDENCE_UNVERIFIED"
     inside = CANDIDATE_ROOT / ".ca04-control-plane.json"
     inside.write_text(json.dumps(_control_plane()), encoding="utf-8")
     try:
@@ -917,7 +923,7 @@ def test_ca04_self_selected_pins_are_not_the_control_plane(tmp_path, monkeypatch
         )
     finally:
         inside.unlink(missing_ok=True)
-    assert note == "SOURCE_UNPROVEN"
+    assert note == "EVIDENCE_UNVERIFIED"
 
 
 def test_ca05_no_current_reviewer_conclusion_stays_blocked(tmp_path, monkeypatch):
@@ -931,7 +937,7 @@ def test_ca05_no_current_reviewer_conclusion_stays_blocked(tmp_path, monkeypatch
         service=service,
         plane_overrides={"current_reviewer_conclusion": False, "turn_id": GPT_PRIVATE_TURN, "message_id": GPT_PRIVATE_MESSAGE},
     )
-    assert note == "SOURCE_UNPROVEN"
+    assert note == "EVIDENCE_UNVERIFIED"
 
 
 def test_ca06_synthetic_fixture_does_not_upgrade(tmp_path, monkeypatch):
@@ -949,7 +955,7 @@ def test_ca06_synthetic_fixture_does_not_upgrade(tmp_path, monkeypatch):
             receipt_id=f"ca06-{index}",
             plane_overrides=mark,
         )
-        assert note == "SOURCE_UNPROVEN"
+        assert note == "EVIDENCE_UNVERIFIED"
 
 
 def test_ca07_concurrent_interleaving_consumes_once(tmp_path, monkeypatch):
@@ -1064,8 +1070,8 @@ def test_registered_round_rereads_control_plane(tmp_path, monkeypatch):
     loaded = load_control_plane(plane_path)
     assert loaded is not None
     assert loaded["appointment_original_digest"] == reread["appointment_original_digest"] == APPOINTMENT_ORIGINAL
-    assert loaded["appointment_original_digest"] != hashlib.sha256(OWNER_APPOINTMENT_THREAD.encode("utf-8")).hexdigest()
-    assert loaded["thread_id"] == reread["thread_id"] == OWNER_APPOINTMENT_THREAD
+    assert loaded["appointment_original_digest"] != hashlib.sha256(HARNESS_THREAD.encode("utf-8")).hexdigest()
+    assert loaded["thread_id"] == reread["thread_id"] == HARNESS_THREAD
     assert loaded["turn_id"] == ROUND_TURN
     assert loaded["message_id"] == ROUND_MESSAGE
     for key in ("base_sha", "candidate_sha", "scope_digest", "fixture_digest", "allowlist_sha256"):
@@ -1082,7 +1088,7 @@ def test_ca10_allowlist_pin_runtime_and_transfer_must_match(tmp_path, monkeypatc
     assert ALLOWLIST_PIN_A != ALLOWLIST_RUNTIME_B
     runner = _runner()
     parsed = {
-        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "thread_id": HARNESS_THREAD,
         "turn_id": ROUND_TURN,
         "message_id": ROUND_MESSAGE,
     }
@@ -1098,7 +1104,7 @@ def test_ca10_allowlist_pin_runtime_and_transfer_must_match(tmp_path, monkeypatc
         "raw_sha256": "11" * 32,
         "service_response_sha256": "22" * 32,
         "message_sha256": "33" * 32,
-        "thread_id": OWNER_APPOINTMENT_THREAD,
+        "thread_id": HARNESS_THREAD,
         "turn_id": ROUND_TURN,
         "message_id": ROUND_MESSAGE,
         "role": "agentMessage",
@@ -1236,7 +1242,7 @@ def test_nr2_01_pin_commitment_without_receipt_file(tmp_path, monkeypatch):
     assert "collector_receipt_sha256" not in loaded
     service_bytes = (tmp_path / "reg" / "service-response.json").read_bytes()
     assert loaded["expected_service_response_sha256"] == hashlib.sha256(service_bytes).hexdigest()
-    assert loaded["thread_id"] == OWNER_APPOINTMENT_THREAD
+    assert loaded["thread_id"] == HARNESS_THREAD
     assert loaded["turn_id"] == ROUND_TURN
     assert loaded["message_id"] == ROUND_MESSAGE
 

@@ -79,7 +79,12 @@ def assess_scope_reviewer(scope: Mapping[str, Any]) -> dict[str, Any]:
     note = separation.get("historical_reviewer_note")
     if isinstance(note, Mapping) and note.get("current_formal_reviewer") is True:
         reasons.append("SCOPE_REVIEWER_STALE")
-    if any(slot == HISTORICAL_AGENT_ID or slot in _NOT_REVIEWER or slot != FORMAL_REVIEWER_ID for slot in slots):
+    from octo.trusted_original import current_appointment
+    appointment = current_appointment()
+    issuer = appointment.get("issuer_id") if isinstance(appointment, dict) else None
+    if not isinstance(issuer, str) or not issuer:
+        reasons.append("SCOPE_REVIEWER_STALE")
+    elif any(slot == HISTORICAL_AGENT_ID or slot in _NOT_REVIEWER or slot != issuer for slot in slots):
         reasons.append("SCOPE_REVIEWER_STALE")
     if any(slot in _NOT_REVIEWER for slot in slots):
         reasons.append("INDEPENDENCE_REGRESSED")
