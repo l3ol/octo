@@ -1,0 +1,80 @@
+{
+  "kind": "SPEC-SOURCE-MANIFEST",
+  "source_commit": "425bd5d5720847ef3ad12b4c1eae37a78c9fe1f2",
+  "source_commit_role": "evidence citation only; this commit is not a candidate ancestor and was not merged, cherry-picked, or spliced",
+  "source_commit_is_candidate_ancestor": false,
+  "source_commit_in_candidate_history": false,
+  "files": [
+    {
+      "src_path": "docs/spec/g2-s1/PLAN-NODE-OUTPUTS.json",
+      "src_commit": "425bd5d5720847ef3ad12b4c1eae37a78c9fe1f2",
+      "src_commit_role": "evidence citation only",
+      "src_commit_is_candidate_ancestor": false,
+      "src_blob": "513cee0eb5e6ff262e6890c03e2fcf2f6a585402",
+      "dst_path": "docs/spec/g2-s1/PLAN-NODE-OUTPUTS.json",
+      "dst_blob": "513cee0eb5e6ff262e6890c03e2fcf2f6a585402",
+      "content_sha256": "fc004c4fa2fb215914e82644b69ce846a2a04c5413de084030cb86df14366bbb",
+      "bytes": 21990
+    },
+    {
+      "src_path": "docs/spec/g2-s1/T-00A-MATCH.md",
+      "src_commit": "425bd5d5720847ef3ad12b4c1eae37a78c9fe1f2",
+      "src_commit_role": "evidence citation only",
+      "src_commit_is_candidate_ancestor": false,
+      "src_blob": "d9beb7d46e758c50f87a0a49147ee50c9e8435c0",
+      "dst_path": "docs/spec/g2-s1/T-00A-MATCH.md",
+      "dst_blob": "d9beb7d46e758c50f87a0a49147ee50c9e8435c0",
+      "content_sha256": "e15e2832c9d344069b385e45a80bedb6f110f41990ac4899ab9ba265b239fe83",
+      "bytes": 1345
+    },
+    {
+      "src_path": "docs/spec/g2-s1/T-00A-T01-RECEIPT.md",
+      "src_commit": "425bd5d5720847ef3ad12b4c1eae37a78c9fe1f2",
+      "src_commit_role": "evidence citation only",
+      "src_commit_is_candidate_ancestor": false,
+      "src_blob": "08a8471ca3923f7a641037181ffe1f5e5e25341a",
+      "dst_path": "docs/spec/g2-s1/T-00A-T01-RECEIPT.md",
+      "dst_blob": "08a8471ca3923f7a641037181ffe1f5e5e25341a",
+      "content_sha256": "87a2a0cb76a64539392bc0996c6d9a6608d3185b9b2c0212668ff97007e262ea",
+      "bytes": 725
+    },
+    {
+      "src_path": "docs/spec/g2-s1/T-01-SPEC-ENVELOPE-ROUTER.md",
+      "src_commit": "425bd5d5720847ef3ad12b4c1eae37a78c9fe1f2",
+      "src_commit_role": "evidence citation only",
+      "src_commit_is_candidate_ancestor": false,
+      "src_blob": "e98b7613b30379cf8cb795070c5112f9419278db",
+      "dst_path": "docs/spec/g2-s1/T-01-SPEC-ENVELOPE-ROUTER.md",
+      "dst_blob": "e98b7613b30379cf8cb795070c5112f9419278db",
+      "content_sha256": "d510e4b7909ffa9d34fc4c35edc9039d00978308d61db0b819ffcd939590235c",
+      "bytes": 4362
+    },
+    {
+      "src_path": "docs/spec/g2-s1/recompute_inputs_hash.py",
+      "src_commit": "425bd5d5720847ef3ad12b4c1eae37a78c9fe1f2",
+      "src_commit_role": "evidence citation only",
+      "src_commit_is_candidate_ancestor": false,
+      "src_blob": "29dc2aae04c8da62d731ae7fa4455fbe210959cf",
+      "dst_path": "docs/spec/g2-s1/recompute_inputs_hash.py",
+      "dst_blob": "29dc2aae04c8da62d731ae7fa4455fbe210959cf",
+      "content_sha256": "349429606ad15622f9bf4e41116de444ecd390008b7c2d93cb781deedd86c50c",
+      "bytes": 659
+    }
+  ],
+  "t00a": {
+    "command": "python3 docs/spec/g2-s1/recompute_inputs_hash.py",
+    "exit_code": 0,
+    "stdout": "N1 eac558dfd8e711cfa265045134697e7cc71264d1833e5c0ad6acd57dba82ead2 eac558dfd8e711cfa265045134697e7cc71264d1833e5c0ad6acd57dba82ead2 MATCH\nN2 46c64b983b0c0c1a1a26702a4aa0451ac54f76592972478bb7e5106c70c178e1 46c64b983b0c0c1a1a26702a4aa0451ac54f76592972478bb7e5106c70c178e1 MATCH\nN3 c34ecbc0fc8c8c169fd47f5c325ce61503612986aaaefe3dacf11e9045e6b622 c34ecbc0fc8c8c169fd47f5c325ce61503612986aaaefe3dacf11e9045e6b622 MATCH\nN4 0ac13220a9099ce844bd60125df75419385dbc812bef2e26e968182fdfe1b477 0ac13220a9099ce844bd60125df75419385dbc812bef2e26e968182fdfe1b477 MATCH\nN5 07c5b6678d1d2d7c23f934427be1db6367663d5717d509b09479c6f42cf29221 07c5b6678d1d2d7c23f934427be1db6367663d5717d509b09479c6f42cf29221 MATCH\nN8 02f7f3bad5cdd4fa6fcdb987e195c091834368e8ee079ca6696ca85da1f9eeac 02f7f3bad5cdd4fa6fcdb987e195c091834368e8ee079ca6696ca85da1f9eeac MATCH\nN6 NOT_RUN_THIS_STAGE\nN7 NOT_RUN_THIS_STAGE\n",
+    "field_contracts": {
+      "N1": "MATCH",
+      "N2": "MATCH",
+      "N3": "MATCH",
+      "N4": "MATCH",
+      "N5": "MATCH",
+      "N8": "MATCH",
+      "N6": "NOT_RUN_THIS_STAGE",
+      "N7": "NOT_RUN_THIS_STAGE"
+    },
+    "result": "MATCH"
+  }
+}
