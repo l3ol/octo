@@ -1,0 +1,26 @@
+{
+  "kind": "tester_decision",
+  "id": "group-bwrap",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group bwrap. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "BWRAP-LOCAL",
+      "group": "bwrap",
+      "verdict": "CAPABILITY_GAP",
+      "expected": "if bwrap is absent, CAPABILITY_GAP with the runner record; xfail is not a pass",
+      "actual": "which=None runner={'runtime_pass': False, 'capability': 'CAPABILITY_GAP', 'returncode': None, 'argv': ['bwrap', '--die-with-parent', '--new-session', '--unshare-net', '--unshare-pid', '--as-pid-1', '--ro-bind', '/usr', '/usr', '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64', '--symlink', 'usr/bin', '/bin', '--ro-bind', '/etc', '/etc', '--proc', '/proc', '--dev', '/dev', '--remount-ro', '/dev', '--bind', '/tmp/t192-work/iso', '/iso', '--setenv', 'TMPDIR', '/iso/tmp', '--remount-ro', '/', '--chdir', '/iso', '--', '/usr/bin/python3', '-c', \"print('PIDS')\"], 'close_fds': True, 'pass_fds': [], 'stdin': 'devnull', 'error': 'BWRAP_MISSING'}",
+      "note": "This host has no bwrap binary. The tip51 Ops bed is a separate ro-bind proof and is not reused as a local process-isolation pass."
+    }
+  ]
+}

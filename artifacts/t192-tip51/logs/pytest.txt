@@ -1,0 +1,6 @@
+........................................................................ [ 55%]
+....x.....................................................               [100%]
+=========================== short test summary info ============================
+XFAIL tests/test_isolation_runner.py::test_hardened_runner_applies_proc_and_dev_contract - CAPABILITY_GAP: this host cannot run the process-isolation contract
+129 passed, 1 xfailed in 0.69s
+

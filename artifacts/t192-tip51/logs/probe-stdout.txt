@@ -1,0 +1,132 @@
+MATCH            PIN-HEAD-TREE-PARENT
+PASS_EVIDENCE    NA-RO-03
+PASS_EVIDENCE    NA-RO-04
+MATCH            OPS-TIP51-PIN
+CLEARED          WAITING_OPS_TIP51
+MATCH            NA-RO-01
+MATCH            NA-RO-02
+OPEN             RO-BIND-ASSESSMENT-CODE
+MATCH            NA-IS-01
+MATCH            NA-IS-02
+MATCH            NA-IS-03
+MATCH            NA-IS-04
+MATCH            NA-TF-01
+MATCH            NA-RG-01
+MATCH            NA-RG-02
+MATCH            NA-RG-03
+MATCH            NA-TF-02
+MATCH            N11-TO-01b
+MATCH            N11-TO-01b-writable
+MATCH            N11-ROOT-IN-CANDIDATE
+MATCH            NA-TF-03
+MATCH            SOURCE-EVIDENCE-NONEMPTY
+OPEN             N11-FORMAL-OK
+MATCH            N11-TO-06-route
+MATCH            N11-TO-06f-short
+MATCH            N11-TO-06f-upper
+MATCH            N11-TO-09
+MATCH            N11-TO-11
+MATCH            N11-TO-14
+MATCH            N11-TO-08
+MATCH            N11-TO-02
+MATCH            N11-TO-03
+MATCH            N11-TO-04
+MATCH            N11-TO-05
+MATCH            DOD-A-UNTRUSTED-REVISE
+MATCH            DOD-A-UNTRUSTED-BLOCKED
+MATCH            DOD-A-EMPTY-PROOF
+MATCH            DOD-A-BUILDER-FLAG
+MATCH            N11-TO-15
+OPEN             N11-TO-16
+MATCH            N11-TO-10
+MATCH            DOD-B-N11-OVERALL
+MATCH            DOD-B-N10-PACK
+MATCH            DOD-B-INTENT
+MATCH            DOD-B-N1-STOP
+MATCH            DOD-B-FOREIGN-INTENT
+MATCH            DOD-B-N2-PARTIAL-READONLY
+MATCH            DOD-B-PARTIAL-CONSEQUENTIAL
+MATCH            DOD-B-N3-STOP
+MATCH            DOD-B-N5-STOP
+MATCH            DOD-B-N8-STOP
+MATCH            DOD-V11-OVERALL
+MATCH            DOD-C-OBJECTS
+MATCH            DOD-C-IDEMPOTENT
+MATCH            DOD-C-CONFLICT
+MATCH            DOD-H1
+MATCH            DOD-H2
+MATCH            DOD-H3
+MATCH            DOD-H-NO-CONSTANT-ASSIGN
+MATCH            DOD-D4-SAME
+MATCH            DOD-D4-CHANGE
+MATCH            DOD-D4-INTENT
+MATCH            DOD-D4-OTHER-STORE
+MATCH            DOD-D4-NO-GLOBAL-SET
+MATCH            DOD-D-LINKS
+MATCH            DOD-D-WRITEBACK-SPLIT
+MATCH            DOD-D4-RUN-STANDARD
+MATCH            DOD-E-N9-DIGEST
+MATCH            DOD-E-N9-NO-GRANT
+MATCH            DOD-E-N5-UNREADABLE
+MATCH            DOD-E-N5-FACT
+MATCH            DOD-E-N5-STALE
+MATCH            N10-FIXED
+MATCH            N10-CHANGED
+MATCH            N10-NO-AUTH
+CAPABILITY_GAP   BWRAP-LOCAL
+PASS             A2-THREE-COMPONENT
+PASS             A2-BYTE
+PASS             A2-FAIL-CLOSED
+PASS             A2-PATH-NORMALIZE
+PASS             A2-HANDOFF-BINDING
+PASS             A2-REVIEW-REFUSES-PASS
+OPEN             A2-TIP51-INVENTORY
+OPEN             A2-HANDOFF-SNAPSHOT
+OPEN             GAP-01
+OPEN             GAP-02
+OPEN             GAP-03
+OPEN             GAP-04
+MATCH            NA-GAP-01
+CONTEXT          PYTEST-CONTEXT
+MATCH            PRODUCT-TREE-UNTOUCHED
+{
+  "status": "T192_TIP51_EVIDENCED_PARTIAL",
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "stack_ok_is_not_pass": true,
+  "ci_is_not_pass": true,
+  "n11_complete": false,
+  "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+  "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+  "parent": "875836d57cf1f557bb71fc094025f72a084f44dc",
+  "pin_ok": true,
+  "counts": {
+    "MATCH": 71,
+    "PASS_EVIDENCE": 2,
+    "CLEARED": 1,
+    "OPEN": 9,
+    "CAPABILITY_GAP": 1,
+    "PASS": 6,
+    "CONTEXT": 1
+  },
+  "fail_ids": [],
+  "open_ids": [
+    "RO-BIND-ASSESSMENT-CODE",
+    "N11-FORMAL-OK",
+    "N11-TO-16",
+    "A2-TIP51-INVENTORY",
+    "A2-HANDOFF-SNAPSHOT",
+    "GAP-01",
+    "GAP-02",
+    "GAP-03",
+    "GAP-04"
+  ],
+  "pytest_exit": 0,
+  "pytest_is_not_acceptance": true,
+  "bwrap_local": "CAPABILITY_GAP",
+  "na_ro_03_04": "PASS_EVIDENCE",
+  "waiting_ops_tip51": "CLEARED"
+}

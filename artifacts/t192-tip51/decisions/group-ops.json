@@ -1,0 +1,39 @@
+{
+  "kind": "tester_decision",
+  "id": "group-ops",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group ops. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "OPS-TIP51-PIN",
+      "group": "ops",
+      "verdict": "MATCH",
+      "expected": "proof and receipt pin this HEAD/tree/parent and intake b98f5a5c; hashes match the stated digests",
+      "actual": "hash_match=True pin_match=True proof=21700f5fa8851659654b740976043b13023eea836569a2dd5f1a550337cf305f md=0c33e6ced12fb9bb380091266994f571d11a6d984123ddf59395dda054743721 json=dbb67fb8213f6c217bef6dec1e8cf012d7ab16ede305095974e10707735e8607"
+    },
+    {
+      "id": "WAITING_OPS_TIP51",
+      "group": "ops",
+      "verdict": "CLEARED",
+      "expected": "cleared because tip51 Ops bed is hash-matched; tip047 bed is not a substitute and was not used",
+      "actual": "CLEARED"
+    },
+    {
+      "id": "RO-BIND-ASSESSMENT-CODE",
+      "group": "ops",
+      "verdict": "OPEN",
+      "expected": "candidate ro_bind_assessment does not consume the Ops proof and does not close GAP-04",
+      "actual": "assessment_of_bwrap_dict=RO_BIND_UNPROVEN"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "kind": "tester_decision",
+  "id": "group-gap",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group gap. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "GAP-01",
+      "group": "gap",
+      "verdict": "OPEN",
+      "expected": "remain OPEN",
+      "actual": "no production reviewer record; empty registry"
+    },
+    {
+      "id": "GAP-02",
+      "group": "gap",
+      "verdict": "OPEN",
+      "expected": "remain OPEN",
+      "actual": "no writer, key, or channel was created"
+    },
+    {
+      "id": "GAP-03",
+      "group": "gap",
+      "verdict": "OPEN",
+      "expected": "remain OPEN",
+      "actual": "source_evidence shape is not independent verification"
+    },
+    {
+      "id": "GAP-04",
+      "group": "gap",
+      "verdict": "OPEN",
+      "expected": "remain OPEN",
+      "actual": "Ops measured fixture physical RO; status still OPEN"
+    }
+  ]
+}

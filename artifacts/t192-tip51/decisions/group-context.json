@@ -1,0 +1,25 @@
+{
+  "kind": "tester_decision",
+  "id": "group-context",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group context. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "PYTEST-CONTEXT",
+      "group": "context",
+      "verdict": "CONTEXT",
+      "expected": "pytest exit and xfail are context only and are not acceptance",
+      "actual": "exit=0 tail=['........................................................................ [ 55%]', '....x.....................................................               [100%]', '=========================== short test summary info ============================', 'XFAIL tests/test_isolation_runner.py::test_hardened_runner_applies_proc_and_dev_contract - CAPABILITY_GAP: this host cannot run the process-isolation contract', '129 passed, 1 xfailed in 0.69s']"
+    }
+  ]
+}

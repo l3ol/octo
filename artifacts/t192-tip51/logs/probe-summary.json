@@ -1,0 +1,41 @@
+{
+  "status": "T192_TIP51_EVIDENCED_PARTIAL",
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "stack_ok_is_not_pass": true,
+  "ci_is_not_pass": true,
+  "n11_complete": false,
+  "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+  "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+  "parent": "875836d57cf1f557bb71fc094025f72a084f44dc",
+  "pin_ok": true,
+  "counts": {
+    "MATCH": 71,
+    "PASS_EVIDENCE": 2,
+    "CLEARED": 1,
+    "OPEN": 9,
+    "CAPABILITY_GAP": 1,
+    "PASS": 6,
+    "CONTEXT": 1
+  },
+  "fail_ids": [],
+  "open_ids": [
+    "RO-BIND-ASSESSMENT-CODE",
+    "N11-FORMAL-OK",
+    "N11-TO-16",
+    "A2-TIP51-INVENTORY",
+    "A2-HANDOFF-SNAPSHOT",
+    "GAP-01",
+    "GAP-02",
+    "GAP-03",
+    "GAP-04"
+  ],
+  "pytest_exit": 0,
+  "pytest_is_not_acceptance": true,
+  "bwrap_local": "CAPABILITY_GAP",
+  "na_ro_03_04": "PASS_EVIDENCE",
+  "waiting_ops_tip51": "CLEARED"
+}

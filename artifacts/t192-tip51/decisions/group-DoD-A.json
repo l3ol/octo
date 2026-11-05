@@ -1,0 +1,46 @@
+{
+  "kind": "tester_decision",
+  "id": "group-DoD-A",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group DoD-A. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "DOD-A-UNTRUSTED-REVISE",
+      "group": "DoD-A",
+      "verdict": "MATCH",
+      "expected": "an untrusted REVISE dict is not a formal opinion and is not raised to PASS",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False"
+    },
+    {
+      "id": "DOD-A-UNTRUSTED-BLOCKED",
+      "group": "DoD-A",
+      "verdict": "MATCH",
+      "expected": "an untrusted BLOCKED dict is not raised to PASS",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False"
+    },
+    {
+      "id": "DOD-A-EMPTY-PROOF",
+      "group": "DoD-A",
+      "verdict": "MATCH",
+      "expected": "sha-only empty proof is BLOCKED",
+      "actual": "status=BLOCKED verdict=BLOCKED note=ROOT_UNAVAILABLE runtime_pass_field=False"
+    },
+    {
+      "id": "DOD-A-BUILDER-FLAG",
+      "group": "DoD-A",
+      "verdict": "MATCH",
+      "expected": "builder_claims_pass raises BUILDER_PASS_FORBIDDEN",
+      "actual": "BUILDER_PASS_FORBIDDEN"
+    }
+  ]
+}

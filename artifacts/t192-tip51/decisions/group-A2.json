@@ -1,0 +1,75 @@
+{
+  "kind": "tester_decision",
+  "id": "group-A2",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group A2. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "A2-THREE-COMPONENT",
+      "group": "A2",
+      "verdict": "PASS",
+      "expected": "template, isolation, and runtime digests recompute; fixture_digest is the digest of those three",
+      "actual": "runtime_code=a7a16e2615b55f7b52d2318fcc1d137d7b417bdf24d16e21d00addee96693ffa runtime_indep=a7a16e2615b55f7b52d2318fcc1d137d7b417bdf24d16e21d00addee96693ffa fixture_code=f38768ac593258c16471e348ab5cf72a927b37ccc231048bc4d17105a53ce5cb fixture_indep=f38768ac593258c16471e348ab5cf72a927b37ccc231048bc4d17105a53ce5cb template=034277eceff049b3105592cc3d96031852c83771c0a519f08d2aec8a3ba86c59 isolation=b6097b2d2e70ca230ef10b937b1a1f73a1583693d582ca4bf2c302d00964c818",
+      "note": "Mechanism on a tester-made external store. Not an Ops inventory for tip51."
+    },
+    {
+      "id": "A2-BYTE",
+      "group": "A2",
+      "verdict": "PASS",
+      "expected": "one flipped byte invalidates the old binding; re-registering changes runtime and fixture digests only",
+      "actual": "old_call=CONTENT_SHA_MISMATCH runtime_changed=True fixture_changed=True template_same=True isolation_same=True"
+    },
+    {
+      "id": "A2-FAIL-CLOSED",
+      "group": "A2",
+      "verdict": "PASS",
+      "expected": "missing file, wrong candidate, snapshot kind, empty items, in-repo schema, and .. are rejected",
+      "actual": "missing=ARTIFACT_MISSING candidate=CANDIDATE_SHA_MISMATCH cycle=CYCLE_INPUT_FORBIDDEN empty=EXTERNAL_MANIFEST_EMPTY schema=RUNTIME_SCHEMA_NOT_EVIDENCE escape=PATH_ESCAPE"
+    },
+    {
+      "id": "A2-PATH-NORMALIZE",
+      "group": "A2",
+      "verdict": "PASS",
+      "expected": "relative and absolute manifest paths normalize to one runtime digest",
+      "actual": "relative=a7a16e2615b55f7b52d2318fcc1d137d7b417bdf24d16e21d00addee96693ffa absolute=a7a16e2615b55f7b52d2318fcc1d137d7b417bdf24d16e21d00addee96693ffa"
+    },
+    {
+      "id": "A2-HANDOFF-BINDING",
+      "group": "A2",
+      "verdict": "PASS",
+      "expected": "handoff_binding returns RECEIVED with runtime_pass false and does not write a snapshot",
+      "actual": "decision=RECEIVED product_pass=False runtime_pass=False wrote_new=False repo_snapshots=[]"
+    },
+    {
+      "id": "A2-REVIEW-REFUSES-PASS",
+      "group": "A2",
+      "verdict": "PASS",
+      "expected": "review_entry does not issue PASS",
+      "actual": "PermissionError: builder self-sign blocked"
+    },
+    {
+      "id": "A2-TIP51-INVENTORY",
+      "group": "A2",
+      "verdict": "OPEN",
+      "expected": "an Ops external Grant/request/Receipt/log inventory pinned to tip51",
+      "actual": "no such manifest is on this VM; the ro-bind proof is not an A24 inventory"
+    },
+    {
+      "id": "A2-HANDOFF-SNAPSHOT",
+      "group": "A2",
+      "verdict": "OPEN",
+      "expected": "a sealed handoff_snapshot for tip51",
+      "actual": "function does not write one; none is in the candidate tree"
+    }
+  ]
+}

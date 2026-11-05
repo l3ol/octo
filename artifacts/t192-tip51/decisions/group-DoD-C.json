@@ -1,0 +1,39 @@
+{
+  "kind": "tester_decision",
+  "id": "group-DoD-C",
+  "candidate": {
+    "head": "51a23ccd4f9efe7bafc759703997b01eccb04e13",
+    "tree": "babde0c3ac257f5d8ec1a2ec046e316f8a04ac5c",
+    "parent": "875836d57cf1f557bb71fc094025f72a084f44dc"
+  },
+  "runtime_pass": false,
+  "verification_pass": false,
+  "product_pass": false,
+  "merge": false,
+  "tip047_sealed": false,
+  "n11_complete": false,
+  "statement": "Case rows in group DoD-C. A row verdict is not runtime_pass and is not a product PASS.",
+  "rows": [
+    {
+      "id": "DOD-C-OBJECTS",
+      "group": "DoD-C",
+      "verdict": "MATCH",
+      "expected": "written objects are only Decision, Evidence, Receipt; failure row is a Receipt; path opens from store_root; sha matches",
+      "actual": "objects=['Receipt', 'Decision', 'Decision', 'Evidence', 'Receipt'] paths_open=[True, True, True, True, True] sha_ok=True link=capture/Decision-d0.json link_ok=True"
+    },
+    {
+      "id": "DOD-C-IDEMPOTENT",
+      "group": "DoD-C",
+      "verdict": "MATCH",
+      "expected": "same Receipt content is returned again and does not raise SUPERSEDE_OVERWRITE",
+      "actual": "second_sha=ccb6fdb3f49b87cd7d5c38885e01efaf6ef85b2cdd11d0d2443fae5070e6ad90 same_bytes=True"
+    },
+    {
+      "id": "DOD-C-CONFLICT",
+      "group": "DoD-C",
+      "verdict": "MATCH",
+      "expected": "conflicting content raises CONTENT_CONFLICT and leaves the old bytes in place",
+      "actual": "CONTENT_CONFLICT:capture/Receipt-r1.json bytes_unchanged=True"
+    }
+  ]
+}
